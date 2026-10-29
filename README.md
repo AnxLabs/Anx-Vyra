@@ -188,17 +188,44 @@ Distance 136 was run three times independently and reproduced identically each t
 
 ![Retrieval accuracy by needle-to-query distance](docs/distance_sweep.svg)
 
-### 2. The real blocker is interference between distances, not architecture
+### 2. Interference between distances is trainable in a mix — but the distance rule stays sharp
 
-Training one new distance at 3e-4 **destroyed the previously learned 64-token ability on five of six
-arms** (0.97 → 0.000 at the first checkpoint). It survived only on the arm closest to the 64-token
-task (distance 104), and even there it degraded to 0.67.
+Training one new distance at 3e-4, alone, **destroyed the previously learned 64-token ability on five
+of six arms** (0.97 → 0.000 at the first checkpoint). It survived only on the arm closest to the
+64-token task (distance 104), and even there it degraded to 0.67. Meanwhile the 32-token ability held
+(0.99–1.00) and general validation held (0.700–0.710) on every arm — a specific interference, not a
+global collapse.
 
-Meanwhile the 32-token ability held (0.99–1.00) and general validation held (0.700–0.710) on every
-arm. So this is not a global collapse — it is specific, catastrophic interference from fitting a new
-distance over an old one at a rate high enough to overwrite it.
+**Experiment X substantially resolves this.** Training 32, 64 and 109 *together*, at the same 5 passes
+per distance W gave each arm, learned all three and kept 64-token retrieval:
 
-This matters more than any parameter-count result: **the obstacle to scaling this design is
+| distance | trained | unseen |
+|---|---|---|
+| 32 | 0.894 | 0.813 |
+| 64 | 0.975 | 0.929 |
+| 109 | 0.975 | 0.967 |
+
+So W's result was a **mixing artefact, not a capacity ceiling**: the failure came from fitting one new
+distance over an old one in isolation, not from the model being unable to hold more than one distance.
+
+What that resolution does *not* buy, and what remains open:
+
+- **It is a comparison of two training configurations, not an architectural claim.** One run per
+  configuration; no seed-level replication and no superiority claim is warranted.
+- **Mixing costs a little accuracy where it learns.** At distance 109 the mixed run reaches 0.967
+  unseen; W's single-distance arm on the same distance reached 0.992.
+- **The distance ceiling did not move.** X never attempted 120 or 136, the distances W failed.
+- **The retrieval rule is distance-sharp.** Two untrained neighbour probes degraded (see
+  [Known limitations](#known-limitations)).
+
+![Token accuracy by distance, before and after the mixed-distance run](docs/distance_profile.svg)
+
+The chart above is the probe profile discussed under [Known limitations](#known-limitations): the two
+circled points are the only distances where accuracy dropped materially, and everything from distance
+88 outward was already at floor before training. Curated record:
+[`results/experiment_x_multi_distance.json`](results/experiment_x_multi_distance.json).
+
+This remains the most important finding in the repository: **the obstacle to scaling this design is
 continual-learning behaviour, not the attention window and not memory.**
 
 ### 3. Learning rate was the difference between working and not working
@@ -213,9 +240,12 @@ Both agreed: trained 0.970 / 0.975, unseen 0.840 / 0.890.
 
 ### 4. What we have not shown
 
-We have not shown that ANX-VYRA scales, that these findings transfer to larger widths or depths, or
-that a mixed-distance curriculum solves the interference problem. Those are open. The interference
-result in particular is a *negative* result and is reported as one.
+We have not shown that ANX-VYRA scales, or that these findings transfer to larger widths or depths.
+
+On interference specifically, the picture is now split rather than wholly negative: a mixed-distance
+run does learn several distances and retain the earlier one (finding 2), but it degrades untrained
+neighbouring distances, and it has not been shown to generalise to a *continuous* range of distances
+rather than a trained set of them. The jittered-filler fix proposed for that is unrun.
 
 ## Known limitations
 
@@ -235,8 +265,14 @@ Stated plainly, because a research repository is only useful if its edges are vi
   nothing. Every "unseen" number in this README comes from a continuation of a pretrained checkpoint
   that is not distributed, so those numbers cannot be reproduced from this repository alone. The
   from-scratch run is archived in `results/from_scratch_baseline_d32.json`.
-- **Interference is unsolved.** Learning a new distance can erase an old one. This is the open
-  problem, not a solved one.
+- **Interference is manageable, not solved.** Learning a new distance alone can erase an old one, but
+  training distances together preserves the old one (0.929 unseen at 64 tokens). What a mixed run does
+  *not* do is interpolate: two untrained neighbouring probes degraded after training, at distance 40
+  (0.918 → 0.684 token accuracy) and distance 72 (0.267 → 0.006). Both sit exactly 8 tokens past a
+  trained distance. The model appears to form distance-sharp representations at the offsets it is
+  shown rather than a smooth rule, so an untrained distance next door is not covered. This is inferred
+  from two degraded points in one run; the proposed fix (jittering filler lengths around each target)
+  has not been run.
 - **Distance limit is empirical.** We measured where it breaks (between 114 and 120). We have not
   proven *why* beyond ruling out record count and window size.
 - **CPU reference path.** Reported results were produced on GPU and validated against CPU evaluation
@@ -257,7 +293,8 @@ anx_vyra/
 tests/           integrity tests (parameter counts, causality, routing, optimizer, geometry)
 benchmarks/      reproduce_retrieval.py - train and measure one distance end to end
 results/         machine-readable results from the reported experiments
-docs/            figures and supporting notes
+tools/           publish_experiment.py - fail-closed publisher for new experiment results
+docs/            figures, experiment log, and the publishing workflow
 ```
 
 ## Citation and license

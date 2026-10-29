@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="420" viewBox="0 0 780 420" font-family="system-ui,sans-serif">
+<rect width="780" height="420" fill="#fff"/>
+<text x="390" y="22" font-size="13" fill="#111827" text-anchor="middle">Experiment X: record retrieval across distance, before and after 200 steps</text>
+<line x1="72" y1="340.0" x2="736" y2="340.0" stroke="#e5e7eb"/>
+<text x="64" y="344.0" font-size="11" fill="#6b7280" text-anchor="end">0.00</text>
+<line x1="72" y1="269.0" x2="736" y2="269.0" stroke="#e5e7eb"/>
+<text x="64" y="273.0" font-size="11" fill="#6b7280" text-anchor="end">0.25</text>
+<line x1="72" y1="198.0" x2="736" y2="198.0" stroke="#e5e7eb"/>
+<text x="64" y="202.0" font-size="11" fill="#6b7280" text-anchor="end">0.50</text>
+<line x1="72" y1="127.0" x2="736" y2="127.0" stroke="#e5e7eb"/>
+<text x="64" y="131.0" font-size="11" fill="#6b7280" text-anchor="end">0.75</text>
+<line x1="72" y1="56.0" x2="736" y2="56.0" stroke="#e5e7eb"/>
+<text x="64" y="60.0" font-size="11" fill="#6b7280" text-anchor="end">1.00</text>
+<line x1="72" y1="340" x2="736" y2="340" stroke="#9ca3af"/>
+<text x="72.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">40</text>
+<text x="99.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">56</text>
+<text x="127.3" y="356" font-size="10" fill="#6b7280" text-anchor="middle">72</text>
+<text x="155.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">88</text>
+<text x="182.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">104</text>
+<text x="238.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">136</text>
+<text x="293.3" y="356" font-size="10" fill="#6b7280" text-anchor="middle">168</text>
+<text x="348.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">200</text>
+<text x="404.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">232</text>
+<text x="459.3" y="356" font-size="10" fill="#6b7280" text-anchor="middle">264</text>
+<text x="514.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">296</text>
+<text x="625.3" y="356" font-size="10" fill="#6b7280" text-anchor="middle">360</text>
+<text x="736.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">424</text>
+<text x="404.0" y="378" font-size="12" fill="#374151" text-anchor="middle">needle-to-query distance (tokens)</text>
+<text x="16" y="198.0" font-size="12" fill="#374151" text-anchor="middle" transform="rotate(-90 16 198.0)">token accuracy</text>
+<polyline points="72.0,79.2 99.7,339.1 127.3,264.0 155.0,339.0 182.7,339.5 238.0,338.5 293.3,340.0 348.7,340.0 404.0,340.0 459.3,338.2 514.7,338.2 625.3,340.0 736.0,338.2" fill="none" stroke="#2563eb" stroke-width="2"/>
+<circle cx="72.0" cy="79.2" r="3.2" fill="#2563eb"/>
+<circle cx="99.7" cy="339.1" r="3.2" fill="#2563eb"/>
+<circle cx="127.3" cy="264.0" r="3.2" fill="#2563eb"/>
+<circle cx="155.0" cy="339.0" r="3.2" fill="#2563eb"/>
+<circle cx="182.7" cy="339.5" r="3.2" fill="#2563eb"/>
+<circle cx="238.0" cy="338.5" r="3.2" fill="#2563eb"/>
+<circle cx="293.3" cy="340.0" r="3.2" fill="#2563eb"/>
+<circle cx="348.7" cy="340.0" r="3.2" fill="#2563eb"/>
+<circle cx="404.0" cy="340.0" r="3.2" fill="#2563eb"/>
+<circle cx="459.3" cy="338.2" r="3.2" fill="#2563eb"/>
+<circle cx="514.7" cy="338.2" r="3.2" fill="#2563eb"/>
+<circle cx="625.3" cy="340.0" r="3.2" fill="#2563eb"/>
+<circle cx="736.0" cy="338.2" r="3.2" fill="#2563eb"/>
+<polyline points="72.0,145.7 99.7,339.1 127.3,338.3 155.0,339.0 182.7,339.5 238.0,337.8 293.3,340.0 348.7,339.0 404.0,339.0 459.3,338.2 514.7,338.2 625.3,338.2 736.0,340.0" fill="none" stroke="#059669" stroke-width="2"/>
+<circle cx="72.0" cy="145.7" r="3.2" fill="#059669"/>
+<circle cx="99.7" cy="339.1" r="3.2" fill="#059669"/>
+<circle cx="127.3" cy="338.3" r="3.2" fill="#059669"/>
+<circle cx="155.0" cy="339.0" r="3.2" fill="#059669"/>
+<circle cx="182.7" cy="339.5" r="3.2" fill="#059669"/>
+<circle cx="238.0" cy="337.8" r="3.2" fill="#059669"/>
+<circle cx="293.3" cy="340.0" r="3.2" fill="#059669"/>
+<circle cx="348.7" cy="339.0" r="3.2" fill="#059669"/>
+<circle cx="404.0" cy="339.0" r="3.2" fill="#059669"/>
+<circle cx="459.3" cy="338.2" r="3.2" fill="#059669"/>
+<circle cx="514.7" cy="338.2" r="3.2" fill="#059669"/>
+<circle cx="625.3" cy="338.2" r="3.2" fill="#059669"/>
+<circle cx="736.0" cy="340.0" r="3.2" fill="#059669"/>
+<line x1="602" y1="64.0" x2="618" y2="64.0" stroke="#2563eb" stroke-width="2"/>
+<text x="730" y="68" font-size="11" fill="#2563eb" text-anchor="end">step 0 (start checkpoint)</text>
+<line x1="602" y1="81.0" x2="618" y2="81.0" stroke="#059669" stroke-width="2"/>
+<text x="730" y="85" font-size="11" fill="#059669" text-anchor="end">step 200 (after training)</text>
+<circle cx="72.0" cy="145.7" r="7.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="72.0" y="131.7" font-size="10" fill="#ef4444" text-anchor="middle">-0.234</text>
+<circle cx="127.3" cy="338.3" r="7.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="139.3" y="330.3" font-size="10" fill="#ef4444" text-anchor="start">-0.262</text>
+<circle cx="602" cy="98.5" r="5.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="730" y="102" font-size="11" fill="#ef4444" text-anchor="end">degraded between checkpoints</text>
+<text x="404.0" y="402" font-size="10" fill="#6b7280" text-anchor="middle">trained distances in this run: 32, 64, 109 &#183; probe accuracy is token-level, not record-exact</text>
+</svg>

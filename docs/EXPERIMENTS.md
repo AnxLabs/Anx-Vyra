@@ -121,9 +121,82 @@ failure instead of a config error. Both are now hard failures with explicit mess
 **Reproducibility:** distance 136 was run three separate times and reproduced identically
 (0.225 / 0.000) each time.
 
+## X — multi-distance mix (what W's interference actually was)
+
+W trained exactly one distance per arm. X asked whether the interference W measured was a property of
+the architecture or of that training configuration, so it trained three distances at once.
+
+One arm, from V's step-200 weights at 3e-4, 200 steps, batch of 5 rows: 2 general replay rows plus 1
+row per distance. Each distance therefore received **5 passes** — the same exposure W gave each of its
+arms — so the comparison isolates *mixing* rather than extra training. Each distance is scored on its
+own 40 disjoint unseen rows, every checkpoint.
+
+| distance | baseline | trained | unseen | W, same distance, trained alone |
+|---|---|---|---|---|
+| 32 | 0.000 | 0.894 | 0.813 | not trained in W |
+| 64 | 0.000 | 0.975 | 0.929 | 0.000 on every distance-learning arm |
+| 109 | 0.000 | 0.975 | 0.967 | 0.992 / 0.992 (W arm d101) |
+
+All three started at 0.000 record-exact on both trained and unseen rows.
+
+**Result: W's interference did not reproduce once the distances were trained together.** W drove
+64-token retrieval to 0.000 on five of six arms and to 0.67 on the sixth; X holds it at 0.929 while
+learning 109 to 0.967. The 32-token retention probe held (0.9917 → 0.9479) and general validation was
+flat (0.6995 → 0.6992 token accuracy).
+
+Two things X did **not** show, and should not be read as showing. It is one run per configuration, so
+the difference is between two training setups, not a seed-level or architectural result. And it did
+not raise W's distance ceiling: at distance 109 the mixed run is slightly *worse* than W's
+single-distance arm (0.967 against 0.992 unseen), and X never attempted 120 or 136, the distances W
+failed. Mixing buys retention and costs a little accuracy on the distance being trained.
+
+Learning-rate application was verified by first-update magnitude, `3.000498e-04`, and the GPU/CPU
+metric gate passed with an absolute delta of 0.0 on all three gate metrics. Cost: 192.2 s of training,
+961 ms per step, 1.968 GiB peak GPU allocation.
+
+### The regression, and what the distance profile showed
+
+Stopping rule 2 fired at steps 175 and 200: the `train_F32` rehearsal probe fell 0.6795 → 0.4167
+record-exact, under its 0.5295 floor. Rather than guess at the cause, both checkpoints were profiled
+across the whole inherited probe set — 13 distances, CPU, deterministic:
+
+| probe | distance | step 0 | step 200 | delta |
+|---|---|---|---|---|
+| train_F32 | 40 | 0.9183 | 0.6843 | **-0.2340** |
+| train_F48 | 56 | 0.0033 | 0.0033 | 0.0000 |
+| train_F64 | 72 | 0.2674 | 0.0058 | **-0.2616** |
+| train_F80 | 88 | 0.0036 | 0.0036 | 0.0000 |
+| train_F96 | 104 | 0.0018 | 0.0018 | 0.0000 |
+| train_F128 | 136 | 0.0052 | 0.0078 | +0.0026 |
+| train_F160–F256, unseen_F288–F416 | 168–424 | ≤0.0063 | ≤0.0063 | ~0 |
+
+(Token accuracy, not record-exact; probe payloads are disjoint from all training payloads. A probe
+named F*n* has filler *n*, and distance = filler + 8.)
+
+Exactly two points moved, and **both sit precisely +8 tokens past a distance this run trained**:
+40 = 32 + 8 and 72 = 64 + 8. Every distance further out was already at floor, so it had no headroom
+left to lose. No probe sits on 32, 64 or 109 themselves, so this profile does not measure the trained
+offsets directly — it measures their neighbours.
+
+This is not rehearsal dilution: the general-replay rows and the 32-token retention rows are scored
+separately and both held. Dilution would have moved those too. The damage is confined to the untrained
+neighbours.
+
+**Working explanation, not a proven mechanism:** the model forms distance-sharp representations at the
+exact offsets it is trained on rather than a smooth interpolation rule, so it does not automatically
+generalise to a distance it was never shown even when that distance is 8 tokens away. This is an
+inference from two points and one run.
+
+**Not yet run:** the proposed targeted fix is to jitter each training row's filler length across a
+small band around its target, so the model cannot key on one exact offset — a change to the data
+rather than more steps. It is a new experiment and is listed as the next step, not as a result.
+
 ## Open questions
 
-1. Does rehearsing prior distances inside the training mix prevent the interference, or only slow it?
+1. ~~Does rehearsing prior distances inside the training mix prevent the interference, or only slow
+   it?~~ **Partly answered by X:** a balanced mix learns several distances and keeps the earlier one,
+   but it costs accuracy on the distance being trained and leaves untrained neighbours degraded.
+   Whether a *jittered* mix generalises across a continuous band is the next experiment.
 2. Is the 114–120 boundary a property of the architecture or of this task's encoding?
 3. Does the learning-rate sensitivity persist at larger widths, or is it a small-model artifact?
 4. Would per-distance heads or a distance-conditioned curriculum avoid overwriting entirely?

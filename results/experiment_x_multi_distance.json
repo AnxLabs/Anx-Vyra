@@ -1,0 +1,446 @@
+{
+ "experiment": "X",
+ "kind": "multi-distance balanced mix",
+ "question": "does a balanced 32/64/109 mix at 3e-4 learn the long distance without forgetting the short ones?",
+ "design": "One arm. Arm R unchanged. Continuation from the Experiment V step-200 checkpoint (the PASS configuration) with a fresh optimizer. 200 steps, batch of 5 rows = 2 general replay rows + 1 row per distance, so each of the three distances receives exactly 5 passes - the same per-distance exposure Experiment W gave each single-distance arm, which is what makes the comparison a comparison of mixing rather than of extra training. Every distance is scored throughout on its own 40 disjoint unseen rows.",
+ "setup": {
+  "architecture": "arm R as shipped: 128-token window on layers 0,2,4,6, full causal elsewhere",
+  "params_total": 16427072,
+  "params_active": 8169536,
+  "start": "Experiment V step-200 checkpoint",
+  "init_tensor_sha256": "3e8872b64df2fbac4c524aee1008f4299cb26e64e9d15edf3863b753e179f221",
+  "learning_rate": 0.0003,
+  "steps": 200,
+  "batch_rows": 5,
+  "batch_composition": "2 general replay rows + 1 row per distance (32, 64, 109)",
+  "passes_per_distance": 5,
+  "rows_per_distance": 40,
+  "unseen_rows_per_distance": 40,
+  "fresh_optimizer": true,
+  "optimizer": "SliceAdam",
+  "accelerator": "NVIDIA Tesla T4",
+  "distances_trained": [
+   32,
+   64,
+   109
+  ]
+ },
+ "geometry": {
+  "d32": {
+   "distance": 32,
+   "filler": 24,
+   "piece_len": 51,
+   "copies_per_row": 8,
+   "row_bytes": 408,
+   "inside_window": true,
+   "train_rows": 40,
+   "unseen_rows": 40
+  },
+  "d64": {
+   "distance": 64,
+   "filler": 56,
+   "piece_len": 83,
+   "copies_per_row": 6,
+   "row_bytes": 498,
+   "inside_window": true,
+   "train_rows": 40,
+   "unseen_rows": 40
+  },
+  "d109": {
+   "distance": 109,
+   "filler": 101,
+   "piece_len": 128,
+   "copies_per_row": 3,
+   "row_bytes": 384,
+   "inside_window": true,
+   "train_rows": 40,
+   "unseen_rows": 40
+  }
+ },
+ "lr_verification": {
+  "requested": 0.0003,
+  "library_LR_at_build": 0.0003,
+  "first_update_max_abs": 0.0003000497817993164,
+  "note": "SliceAdam reads a module-level LR at update time rather than a constructor argument, so the first update magnitude is the proof that 3e-4 was actually applied rather than the library default. 3.000498e-04 matches the 3e-4 arms of Experiments U and V.",
+  "optimizer_applied_ok": true
+ },
+ "metric_gate": {
+  "mode": "metrics",
+  "tolerance": 0.005,
+  "gpu": {
+   "F32_probe": 0.6794871794871795,
+   "needle32": 0.9916666666666667,
+   "valid_tok": 0.69953125
+  },
+  "cpu_reference": {
+   "F32_probe": 0.6794871794871795,
+   "needle32": 0.9916666666666667,
+   "valid_tok": 0.69953125
+  },
+  "abs_delta": {
+   "F32_probe": 0.0,
+   "needle32": 0.0,
+   "valid_tok": 0.0
+  },
+  "pass": true,
+  "note": "Evaluation rates before training, computed on GPU and on CPU from the same weights. abs_delta is 0.0 on all three gate metrics, so GPU and CPU evaluation of this checkpoint agree exactly on the quantities the gate checks."
+ },
+ "start_baseline": {
+  "d32": {
+   "record_exact": 0.0,
+   "token_acc": 0.001171875,
+   "masked_ce": 11.085027122497559,
+   "records": 320
+  },
+  "d64": {
+   "record_exact": 0.0,
+   "token_acc": 0.004166666666666667,
+   "masked_ce": 8.618191957473755,
+   "records": 240
+  },
+  "d109": {
+   "record_exact": 0.0,
+   "token_acc": 0.003125,
+   "masked_ce": 7.459445953369141,
+   "records": 120
+  },
+  "needle32": {
+   "record_exact": 0.9916666666666667,
+   "token_acc": 0.9989583333333333,
+   "masked_ce": 0.007519656485722711,
+   "records": 480
+  },
+  "F32_probe": {
+   "record_exact": 0.6794871794871795,
+   "token_acc": 0.9182692307692307,
+   "masked_ce": 0.5513808238558854,
+   "records": 156
+  },
+  "orig_valid": {
+   "record_exact": 0.56125,
+   "token_acc": 0.69953125,
+   "masked_ce": 1.4921436548256315,
+   "records": 800
+  },
+  "note": "all three trained distances start at 0.000 record-exact on both trained and unseen rows"
+ },
+ "checkpoints": [
+  {
+   "step": 0,
+   "d32_train": 0.0,
+   "d64_train": 0.0,
+   "d109_train": 0.0,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.0,
+   "d109_unseen": 0.0,
+   "needle32_record_exact": 0.9916666666666667,
+   "F32_probe_record_exact": 0.6794871794871795,
+   "valid_token_acc": 0.69953125,
+   "train_loss": null
+  },
+  {
+   "step": 25,
+   "d32_train": 0.0,
+   "d64_train": 0.0,
+   "d109_train": 0.0,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.0,
+   "d109_unseen": 0.0,
+   "needle32_record_exact": 0.9520833333333333,
+   "F32_probe_record_exact": 0.6282051282051282,
+   "valid_token_acc": 0.6971875,
+   "train_loss": 3.6787052154541016
+  },
+  {
+   "step": 50,
+   "d32_train": 0.0,
+   "d64_train": 0.0,
+   "d109_train": 0.0,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.0,
+   "d109_unseen": 0.0,
+   "needle32_record_exact": 0.9875,
+   "F32_probe_record_exact": 0.6474358974358975,
+   "valid_token_acc": 0.69765625,
+   "train_loss": 2.662188768386841
+  },
+  {
+   "step": 75,
+   "d32_train": 0.0,
+   "d64_train": 0.0,
+   "d109_train": 0.55,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.0,
+   "d109_unseen": 0.3416666666666667,
+   "needle32_record_exact": 0.95,
+   "F32_probe_record_exact": 0.6282051282051282,
+   "valid_token_acc": 0.7075,
+   "train_loss": 1.7826871871948242
+  },
+  {
+   "step": 100,
+   "d32_train": 0.0,
+   "d64_train": 0.5125,
+   "d109_train": 0.7333333333333333,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.29583333333333334,
+   "d109_unseen": 0.4583333333333333,
+   "needle32_record_exact": 0.9125,
+   "F32_probe_record_exact": 0.5641025641025641,
+   "valid_token_acc": 0.70453125,
+   "train_loss": 1.9066827297210693
+  },
+  {
+   "step": 125,
+   "d32_train": 0.0,
+   "d64_train": 0.7875,
+   "d109_train": 0.925,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.6666666666666666,
+   "d109_unseen": 0.7916666666666666,
+   "needle32_record_exact": 0.8708333333333333,
+   "F32_probe_record_exact": 0.5448717948717948,
+   "valid_token_acc": 0.70015625,
+   "train_loss": 1.6446056365966797
+  },
+  {
+   "step": 150,
+   "d32_train": 0.003125,
+   "d64_train": 0.7458333333333333,
+   "d109_train": 0.8916666666666667,
+   "d32_unseen": 0.0,
+   "d64_unseen": 0.525,
+   "d109_unseen": 0.7666666666666667,
+   "needle32_record_exact": 0.9145833333333333,
+   "F32_probe_record_exact": 0.5576923076923077,
+   "valid_token_acc": 0.7053125,
+   "train_loss": 0.82711261510849
+  },
+  {
+   "step": 175,
+   "d32_train": 0.84375,
+   "d64_train": 0.9208333333333333,
+   "d109_train": 0.8916666666666667,
+   "d32_unseen": 0.715625,
+   "d64_unseen": 0.8791666666666667,
+   "d109_unseen": 0.7416666666666667,
+   "needle32_record_exact": 0.85625,
+   "F32_probe_record_exact": 0.33974358974358976,
+   "valid_token_acc": 0.695625,
+   "train_loss": 0.2712496519088745
+  },
+  {
+   "step": 200,
+   "d32_train": 0.89375,
+   "d64_train": 0.975,
+   "d109_train": 0.975,
+   "d32_unseen": 0.8125,
+   "d64_unseen": 0.9291666666666667,
+   "d109_unseen": 0.9666666666666667,
+   "needle32_record_exact": 0.9479166666666666,
+   "F32_probe_record_exact": 0.4166666666666667,
+   "valid_token_acc": 0.69921875,
+   "train_loss": 0.4795934557914734
+  }
+ ],
+ "final": {
+  "per_distance": {
+   "32": {
+    "train": 0.89375,
+    "unseen": 0.8125
+   },
+   "64": {
+    "train": 0.975,
+    "unseen": 0.9291666666666667
+   },
+   "109": {
+    "train": 0.975,
+    "unseen": 0.9666666666666667
+   }
+  },
+  "arm_train": 0.9479166666666666,
+  "unseen": 0.9027777777777778,
+  "needle32_record_exact": 0.9479166666666666,
+  "orig_valid_token_acc": 0.69921875,
+  "F32_probe_record_exact": 0.4166666666666667
+ },
+ "retention": {
+  "needle32_record_exact": {
+   "before": 0.9916666666666667,
+   "after": 0.9479166666666666
+  },
+  "orig_valid_token_acc": {
+   "before": 0.69953125,
+   "after": 0.69921875
+  },
+  "F32_probe_record_exact": {
+   "before": 0.6794871794871795,
+   "after": 0.4166666666666667,
+   "floor": 0.529487
+  }
+ },
+ "probe_profile": {
+  "note": "Token accuracy (per-byte, not record-exact) on the inherited probe set: 13 needle-to-query distances, evaluated on CPU on both checkpoints. A probe named F<n> has filler n, and distance = filler + 8, so probe F32 sits at distance 40. No probe sits on a distance this experiment trained. Probe payloads are disjoint from all training payloads.",
+  "series": {
+   "step0": {
+    "train_F32": {
+     "F": 32,
+     "distance": 40,
+     "token_acc": 0.9182692307692307
+    },
+    "train_F48": {
+     "F": 48,
+     "distance": 56,
+     "token_acc": 0.003289473684210526
+    },
+    "train_F64": {
+     "F": 64,
+     "distance": 72,
+     "token_acc": 0.26744186046511625
+    },
+    "train_F80": {
+     "F": 80,
+     "distance": 88,
+     "token_acc": 0.0036231884057971015
+    },
+    "train_F96": {
+     "F": 96,
+     "distance": 104,
+     "token_acc": 0.001838235294117647
+    },
+    "train_F128": {
+     "F": 128,
+     "distance": 136,
+     "token_acc": 0.005208333333333333
+    },
+    "train_F160": {
+     "F": 160,
+     "distance": 168,
+     "token_acc": 0.0
+    },
+    "train_F192": {
+     "F": 192,
+     "distance": 200,
+     "token_acc": 0.0
+    },
+    "train_F224": {
+     "F": 224,
+     "distance": 232,
+     "token_acc": 0.0
+    },
+    "train_F256": {
+     "F": 256,
+     "distance": 264,
+     "token_acc": 0.00625
+    },
+    "unseen_F288": {
+     "F": 288,
+     "distance": 296,
+     "token_acc": 0.00625
+    },
+    "unseen_F352": {
+     "F": 352,
+     "distance": 360,
+     "token_acc": 0.0
+    },
+    "unseen_F416": {
+     "F": 416,
+     "distance": 424,
+     "token_acc": 0.00625
+    }
+   },
+   "step200": {
+    "train_F32": {
+     "F": 32,
+     "distance": 40,
+     "token_acc": 0.6842948717948718
+    },
+    "train_F48": {
+     "F": 48,
+     "distance": 56,
+     "token_acc": 0.003289473684210526
+    },
+    "train_F64": {
+     "F": 64,
+     "distance": 72,
+     "token_acc": 0.005813953488372093
+    },
+    "train_F80": {
+     "F": 80,
+     "distance": 88,
+     "token_acc": 0.0036231884057971015
+    },
+    "train_F96": {
+     "F": 96,
+     "distance": 104,
+     "token_acc": 0.001838235294117647
+    },
+    "train_F128": {
+     "F": 128,
+     "distance": 136,
+     "token_acc": 0.0078125
+    },
+    "train_F160": {
+     "F": 160,
+     "distance": 168,
+     "token_acc": 0.0
+    },
+    "train_F192": {
+     "F": 192,
+     "distance": 200,
+     "token_acc": 0.003472222222222222
+    },
+    "train_F224": {
+     "F": 224,
+     "distance": 232,
+     "token_acc": 0.003676470588235294
+    },
+    "train_F256": {
+     "F": 256,
+     "distance": 264,
+     "token_acc": 0.00625
+    },
+    "unseen_F288": {
+     "F": 288,
+     "distance": 296,
+     "token_acc": 0.00625
+    },
+    "unseen_F352": {
+     "F": 352,
+     "distance": 360,
+     "token_acc": 0.00625
+    },
+    "unseen_F416": {
+     "F": 416,
+     "distance": 424,
+     "token_acc": 0.0
+    }
+   }
+  }
+ },
+ "rule_firings": [
+  {
+   "step": 175,
+   "rule_1_general_valid_below_floor": false,
+   "rule_2_rehearsal_probe_below_floor": true,
+   "rule_3_collapsed_distances": []
+  },
+  {
+   "step": 200,
+   "rule_1_general_valid_below_floor": false,
+   "rule_2_rehearsal_probe_below_floor": true,
+   "rule_3_collapsed_distances": []
+  }
+ ],
+ "rule_firings_note": "Stopping rule 2 (rehearsal probe below floor) fired at steps 175 and 200, the final two checkpoints of the 200-step run. Rules 1 and 3 never fired. The firing is reported here rather than suppressed.",
+ "cost": {
+  "train_seconds": 192.2,
+  "ms_per_step": 961.03,
+  "wall_seconds": 230.3,
+  "peak_gpu_alloc_gib": 1.968,
+  "peak_gpu_reserved_gib": 2.238
+ },
+ "verdict": "learned: 32=yes, 64=yes, 109=yes; retained: 32=yes, 64=yes, 109=yes; PARTIAL - see per_distance",
+ "verdict_note": "The raw machine verdict is quoted verbatim. 'PARTIAL' there refers to the rule-2 firing at the two final checkpoints, not to the retrieval goal: all three trained distances learned and held. The authored write-up for this run recorded the headline as 'PRIMARY GOAL MET' with the probe regression carried as a separate, diagnosed result.",
+ "comparison_to_w": "Experiment W trained one distance per arm at the same rate and the same 5 passes per row. On that sweep 64-token retrieval went 0.97 -> 0.67 on the arm closest to the original task (distance 104) and 0.97 -> 0.000 on each of the other five, including the arm that successfully learned distance 109. X trains three distances together at unchanged per-distance exposure and ends with 64-token retrieval at 0.929 while learning 109 at 0.967. Read this as a comparison of two training configurations, not as an architectural result: it is one seed per configuration, and it does not raise W's distance ceiling, because X did not attempt the distances W failed (120 and 136)."
+}
