@@ -28,17 +28,37 @@ Experiment X step-200 checkpoint.
 - `vyra_shim.py` — portability shim for running the original Windows-authored library
   on Linux/CUDA.
 
-## Running it
+## Running it — read this before you try
 
-`y_train.py` expects the lab root in `VYRA_LAB` and the starting weights at
-`bundle/vyra_X_step200_weights.pt` (override with `T2_CKPT`). Model weights are not
-distributed here; obtain or retrain them from the architecture in `anx_vyra/`.
+This directory is the code that produced the published result, published so the result can be
+inspected and checked. It is **not** a self-contained reproduction package, and the corpus hash
+below **cannot** be reproduced from it. That is a limitation of this publication, stated plainly
+rather than hidden behind a check that looks rigorous and isn't.
 
-```sh
-export VYRA_LAB=./lab
-python make_corpus_Y.py          # writes train_Y.pt and the probe sets
-python y_train.py                # writes the checkpoint series and results JSON
+Why the hash cannot match:
+
+1. The saved corpus embeds the lab path it was built at (`meta["shim"]` records `LAB->/tmp/ylab`),
+   so its sha256 is a function of where it runs, not only of its contents.
+2. The payload embeds an internal sign-off field that the published script fills with a constant
+   placeholder; the original run recorded a real value, so the bytes differ regardless of path.
+3. Building the corpus also needs inputs that are not published here (the model loader
+   `run_vyra1_copy.py`, `verify_shapes.py`, `corpus.pt`, `probe_Q.pt`, and the four training-set tensors from
+   experiments T2, V, W and X. `anx_vyra/` is a separate, cleaner implementation and cannot load them.
+
+So: do not compare your hash to the one below and conclude the experiment was wrong. A mismatch is
+expected and proves nothing either way.
+
+What this directory is good for: reading exactly how the jitter was scheduled and audited, how the
+library-LR trap was asserted against, how the GPU/CPU equivalence gate was applied, and how each
+per-geometry number was measured. Those are the mechanisms the write-up depends on.
+
+For reference, the original corpus recorded:
+
+```
+sha256 438dfdc6bca259783784dbbd5af7544c38a7762fef3287267e1db8e3e5667d45
+built at /tmp/ylab, 2026-10-29, by the author's local run
 ```
 
-The published corpus has sha256 `438dfdc6bca259783784dbbd5af7544c38a7762fef3287267e1db8e3e5667d45`.
-If your rebuilt corpus differs, the run is not reproducing this result.
+If you want a genuinely reproducible VYRA experiment, the right thing to ask for is a
+self-contained bundle: model code, loader, corpora and probes in one dataset with a manifest, and
+no absolute paths baked into the artifacts. That is not what this is.
