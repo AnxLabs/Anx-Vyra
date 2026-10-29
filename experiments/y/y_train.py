@@ -958,11 +958,15 @@ def arm_loop(arm, ds, lr):
             _proj = None
             if _per is not None:
                 _step_s = (time.monotonic() - t_start) / (step + 1)
+                # Two non-skippable blocks are still ahead and both cost a full eval: the final
+                # measurement and the metric gate. Counting only one understated the projection by
+                # a whole block, which is exactly the window where a run overruns the cap while
+                # reporting that it fits. The baseline is already inside (now - T0).
                 _proj = (time.monotonic() - T0
                          + _per                                  # this block
                          + (STEPS - (step + 1)) * _step_s         # remaining training
                          + _after * _per                          # remaining in-loop blocks
-                         + _per)                                  # final measurement
+                         + (NON_SKIPPABLE_BLOCKS - 1) * _per)     # final measurement + metric gate
             PLAN_STATE["last_projection"] = _proj
             _over = _proj is not None and _proj > _limit
             if _over and EVAL_BUDGET_MODE == "halt":

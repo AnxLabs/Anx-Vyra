@@ -98,9 +98,14 @@ ARM_TABLE = {
           "gaps": [40, 44, 48, 52, 72, 76, 80, 84, 88, 92, 96, 121, 128],
           "passes": 5, "geometries": 9},
     "B": {"steps": 200, "jitter": [0], "n_tr": 8,
-          "gaps": [44, 48, 52, 76, 80, 84, 88, 92, 96, 121, 128],
+          "gaps": [40, 44, 48, 52, 72, 76, 80, 84, 88, 92, 96, 121, 128],
           "passes": 25, "geometries": 3},
 }
+# Arm B carries the 40/72 probes too. The verdict reads the recovery of the two distances X
+# collapsed on BOTH arms, and a distance absent from every namespace makes the verdict self-test
+# refuse to start - correctly, but it would have surfaced as Arm B failing to launch rather than as
+# a package that was built one probe pair short. Neither arm trains 40 or 72, so adding the probes
+# creates no band collision on either. gap_mean stays over the original eleven either way.
 ARM = _env("ARM", default="")
 if not ARM:
     raise SystemExit(
