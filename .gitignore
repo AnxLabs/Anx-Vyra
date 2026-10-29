@@ -1,0 +1,36 @@
+# byte-code and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# environments
+.venv/
+venv/
+env/
+
+# local model weights and generated corpora - deliberately NOT published
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+corpus.pt
+train_*.pt
+probe_*.pt
+
+# local outputs
+out/
+results/local_*.json
+*.log
+
+# credentials and environment
+.env
+.env.*
+kaggle.json
+*.pem
+*.key
+
+# OS noise
+.DS_Store
+Thumbs.db

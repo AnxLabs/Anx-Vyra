@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="380" viewBox="0 0 760 380" font-family="system-ui,sans-serif">
+<rect width="760" height="380" fill="#fff"/>
+<rect x="299.2" y="28" width="100.8" height="300" fill="#fde68a" opacity="0.55"/>
+<text x="349.6" y="42" font-size="11" fill="#92400e" text-anchor="middle">limit</text>
+<line x1="64" y1="328.0" x2="736" y2="328.0" stroke="#e5e7eb"/>
+<text x="56" y="332.0" font-size="11" fill="#6b7280" text-anchor="end">0.00</text>
+<line x1="64" y1="253.0" x2="736" y2="253.0" stroke="#e5e7eb"/>
+<text x="56" y="257.0" font-size="11" fill="#6b7280" text-anchor="end">0.25</text>
+<line x1="64" y1="178.0" x2="736" y2="178.0" stroke="#e5e7eb"/>
+<text x="56" y="182.0" font-size="11" fill="#6b7280" text-anchor="end">0.50</text>
+<line x1="64" y1="103.0" x2="736" y2="103.0" stroke="#e5e7eb"/>
+<text x="56" y="107.0" font-size="11" fill="#6b7280" text-anchor="end">0.75</text>
+<line x1="64" y1="28.0" x2="736" y2="28.0" stroke="#e5e7eb"/>
+<text x="56" y="32.0" font-size="11" fill="#6b7280" text-anchor="end">1.00</text>
+<line x1="64" y1="328" x2="736" y2="328" stroke="#9ca3af"/>
+<text x="131.2" y="344" font-size="11" fill="#6b7280" text-anchor="middle">104</text>
+<text x="198.4" y="344" font-size="11" fill="#6b7280" text-anchor="middle">108</text>
+<text x="215.2" y="344" font-size="11" fill="#6b7280" text-anchor="middle">109</text>
+<text x="299.2" y="344" font-size="11" fill="#6b7280" text-anchor="middle">114</text>
+<text x="400.0" y="344" font-size="11" fill="#6b7280" text-anchor="middle">120</text>
+<text x="668.8" y="344" font-size="11" fill="#6b7280" text-anchor="middle">136</text>
+<text x="400.0" y="368" font-size="12" fill="#374151" text-anchor="middle">needle-to-query distance (tokens)</text>
+<text x="14" y="178.0" font-size="12" fill="#374151" text-anchor="middle" transform="rotate(-90 14 178.0)">record-exact accuracy</text>
+<line x1="534.4" y1="28" x2="534.4" y2="328" stroke="#ef4444" stroke-dasharray="4 3"/>
+<text x="530.4" y="322" font-size="10" fill="#ef4444" text-anchor="end">128-token window</text>
+<polyline points="131.2,29.9 198.4,33.6 215.2,30.5 299.2,33.0 400.0,243.0 668.8,260.5" fill="none" stroke="#2563eb" stroke-width="2"/>
+<circle cx="131.2" cy="29.9" r="3.5" fill="#2563eb"/>
+<circle cx="198.4" cy="33.6" r="3.5" fill="#2563eb"/>
+<circle cx="215.2" cy="30.5" r="3.5" fill="#2563eb"/>
+<circle cx="299.2" cy="33.0" r="3.5" fill="#2563eb"/>
+<circle cx="400.0" cy="243.0" r="3.5" fill="#2563eb"/>
+<circle cx="668.8" cy="260.5" r="3.5" fill="#2563eb"/>
+<text x="732" y="44" font-size="11" fill="#2563eb" text-anchor="end">trained rows</text>
+<polyline points="131.2,43.0 198.4,48.6 215.2,30.5 299.2,98.0 400.0,328.0 668.8,328.0" fill="none" stroke="#059669" stroke-width="2"/>
+<circle cx="131.2" cy="43.0" r="3.5" fill="#059669"/>
+<circle cx="198.4" cy="48.6" r="3.5" fill="#059669"/>
+<circle cx="215.2" cy="30.5" r="3.5" fill="#059669"/>
+<circle cx="299.2" cy="98.0" r="3.5" fill="#059669"/>
+<circle cx="400.0" cy="328.0" r="3.5" fill="#059669"/>
+<circle cx="668.8" cy="328.0" r="3.5" fill="#059669"/>
+<text x="732" y="60" font-size="11" fill="#059669" text-anchor="end">unseen rows</text>
+</svg>

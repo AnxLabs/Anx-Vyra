@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this architecture or these results, please cite it as below."
+title: "ANX-VYRA: Versatile Yet Resource-Aware Architecture"
+abstract: >-
+  An experimental 16.4M-parameter sparse-attention language model architecture for studying
+  long-range retrieval and sparse-routing learning dynamics. Not the Anx-U:50B model.
+authors:
+  - name: "AnxLabs"
+    website: "https://github.com/AnxLabs"
+type: software
+license: Apache-2.0
+repository-code: "https://github.com/AnxLabs/Anx-Vyra"
+keywords:
+  - language-model
+  - mixture-of-experts
+  - sparse-attention
+  - retrieval
+  - research
+date-released: "2026-10-29"

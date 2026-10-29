@@ -1,0 +1,108 @@
+{
+ "experiment": "V",
+ "kind": "learning-rate replication",
+ "setup": {
+  "architecture": "arm R (128-token window on layers 0,2,4,6, full context on others)",
+  "params_total": 16427072,
+  "params_active": 8169536,
+  "steps": 200,
+  "batch_rows": 4,
+  "passes_per_row": 5,
+  "optimizer": "SliceAdam",
+  "fresh_optimizer": true,
+  "start": "step-1500 pretrained checkpoint"
+ },
+ "arms": {
+  "d1_3e4": {
+   "ds": "d1",
+   "lr": 0.0003,
+   "train": 0.97,
+   "unseen": 0.84,
+   "needle32": 0.9958333333333333,
+   "f32": 0.6794871794871795,
+   "valid": 0.69953125,
+   "lr_build": 0.0003,
+   "first_upd": 0.0003000497817993164,
+   "base_valid": 0.705,
+   "base_needle": 0.9895833333333334,
+   "gate": true,
+   "run": "A"
+  },
+  "d1_1e4": {
+   "ds": "d1",
+   "lr": 0.0001,
+   "train": 0.015,
+   "unseen": 0.0,
+   "needle32": 0.9729166666666667,
+   "f32": 0.6474358974358975,
+   "valid": 0.71125,
+   "lr_build": 0.0001,
+   "first_upd": 0.00010001659393310547,
+   "base_valid": 0.705,
+   "base_needle": 0.9895833333333334,
+   "gate": true,
+   "run": "A"
+  },
+  "d2_3e4": {
+   "ds": "d2",
+   "lr": 0.0003,
+   "train": 0.975,
+   "unseen": 0.89,
+   "needle32": 0.9979166666666667,
+   "f32": 0.7115384615384616,
+   "valid": 0.7025,
+   "lr_build": 0.0003,
+   "first_upd": 0.0003000497817993164,
+   "base_valid": 0.705,
+   "base_needle": 0.9895833333333334,
+   "gate": true,
+   "run": "B"
+  },
+  "d2_1e4": {
+   "ds": "d2",
+   "lr": 0.0001,
+   "train": 0.02,
+   "unseen": 0.0,
+   "needle32": 0.95625,
+   "f32": 0.5961538461538461,
+   "valid": 0.71171875,
+   "lr_build": 0.0001,
+   "first_upd": 0.00010001659393310547,
+   "base_valid": 0.705,
+   "base_needle": 0.9895833333333334,
+   "gate": true,
+   "run": "B"
+  }
+ },
+ "per_dataset": {
+  "d1": {
+   "train_3e4": 0.97,
+   "train_1e4": 0.015,
+   "dtrain": 0.955,
+   "unseen_3e4": 0.84,
+   "unseen_1e4": 0.0,
+   "dunseen": 0.84,
+   "valid_3e4": 0.69953125,
+   "dvalid": -0.005469,
+   "needle32_3e4": 0.9958333333333333,
+   "dneedle": 0.00625,
+   "f32_3e4": 0.6794871794871795,
+   "ok": true
+  },
+  "d2": {
+   "train_3e4": 0.975,
+   "train_1e4": 0.02,
+   "dtrain": 0.955,
+   "unseen_3e4": 0.89,
+   "unseen_1e4": 0.0,
+   "dunseen": 0.89,
+   "valid_3e4": 0.7025,
+   "dvalid": -0.0025,
+   "needle32_3e4": 0.9979166666666667,
+   "dneedle": 0.008333,
+   "f32_3e4": 0.7115384615384616,
+   "ok": true
+  }
+ },
+ "verdict": "PASS - 3e-4 reproduces on both datasets and generalises to unseen rows"
+}

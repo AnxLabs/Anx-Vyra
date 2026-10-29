@@ -1,0 +1,10 @@
+ANX-VYRA
+Copyright 2026 AnxLabs
+
+This product includes software developed at AnxLabs.
+
+ANX-VYRA is an experimental research architecture. It is NOT the Anx-U:50B model and is not a
+precursor to it.
+
+Built with PyTorch (https://pytorch.org), Copyright (c) Meta Platforms, Inc. and affiliates,
+licensed under the BSD 3-Clause License. PyTorch is a dependency, not vendored code.
