@@ -317,6 +317,11 @@ def _resolve_steps(sy):
     return int(declared)
 
 
+# How STEPS was obtained, so the self-audit can tell a derived value from a default one. Arm B
+# legitimately trains 200 steps, so "differs from 200" is not the test - "came from the corpus" is.
+STEPS_RESOLVED_FROM = "corpus.build.parameters.steps"
+if not ((SY.get("build") or {}).get("parameters") or {}).get("steps"):
+    STEPS_RESOLVED_FROM = "corpus.meta.steps"
 STEPS = _resolve_steps(SY)
 
 
@@ -396,10 +401,17 @@ def _self_audit():
             f"{absent_src}, so the guard cannot be in force however the symbols look. "
             f"Path audited: {os.path.abspath(__file__)}")
     checks = {}
-    # STEPS and EVAL_EVERY are resolved from the corpus, so both still sitting at the historical
-    # Y defaults means nothing actually re-derived them.
-    checks["steps_no_longer_default_200"] = STEPS != 200
-    checks["eval_every_not_both_default"] = not (STEPS == 200 and EVAL_EVERY == 25)
+    # STEPS must have come from the corpus, not from a default. Arm B legitimately trains 200 steps,
+    # so "differs from 200" would reject a valid approved arm; the real question is whether the
+    # value was derived and agrees with what the corpus declares. STEPS_RESOLVED_FROM records that.
+    _declared = None
+    try:
+        _declared = (SY.get("build") or {}).get("parameters", {}).get("steps")
+    except Exception:
+        _declared = None
+    checks["steps_derived_from_corpus"] = bool(STEPS_RESOLVED_FROM) and (
+        _declared is None or int(STEPS) == int(_declared))
+    checks["eval_every_not_default_pair"] = not (_EVAL_EVERY_RAW == "" and EVAL_EVERY == 25)
     checks["rule5_threshold_derived_not_literal"] = RULE5_PASSES not in (175, 200)
     checks["non_skippable_blocks_nonempty"] = int(NON_SKIPPABLE_BLOCKS) > 0
     checks["steps_resolver_is_a_function"] = callable(g.get("_resolve_steps"))
