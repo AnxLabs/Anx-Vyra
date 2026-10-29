@@ -48,8 +48,12 @@ class PublishError(RuntimeError):
 # secret + privacy patterns
 # --------------------------------------------------------------------------------------------
 # (name, regex, kind).  kind is "secret" or "privacy"; both are fatal.
-# Split fragments: keeps the literal handles and host dirs out of this file.
-HANDLES = ("anjoro" + "simoaj", "bungo" + "pam")
+# Personal identifiers are NOT stored in this file. Splitting them into concatenated
+# fragments was worse than useless: the fragments still ship the handle to every reader
+# of this repo, while the scanner keeps hunting the assembled literal. Load them from the
+# environment instead. When unset, the privacy pattern is simply inactive; the caller is
+# expected to set VYRA_PRIVATE_HANDLES (comma-separated) in its own environment.
+HANDLES = tuple(h.strip() for h in os.environ.get("VYRA_PRIVATE_HANDLES", "").split(",") if h.strip())
 HOST_DIRS = ("work" + "space", "ho" + "me", "kag" + "gle")
 
 SCAN_PATTERNS = [
@@ -69,9 +73,9 @@ SCAN_PATTERNS = [
     ("env_style_assignment", r"(?m)^\s*(?:export\s+)?[A-Z][A-Z0-9_]{2,}=(?!\s*$)\S+", "secret"),
     # --- privacy ---------------------------------------------------------------------
     ("email_address", r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", "privacy"),
-    # Literals are assembled from fragments so this source file does not itself
-    # contain the handles it hunts for.
-    ("personal_handle", "(?i)" + "|".join(HANDLES), "privacy"),
+    # Only included when the caller supplied handles. An empty alternation would match
+    # every position in every file, which is why this cannot be a plain join().
+    *([("personal_handle", "(?i)(?:" + "|".join(re.escape(h) for h in HANDLES) + ")", "privacy")] if HANDLES else []),
     ("absolute_host_path",
      "|".join("/" + d + "/" for d in HOST_DIRS) + r"|[A-Za-z]:\\(?![ntr0bfv]\b)",
      "privacy"),
