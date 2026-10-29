@@ -123,7 +123,10 @@ T0 = time.monotonic()
 R = {"experiment": "Y", "arms_requested": ARMS,
      "rule5_enforced": bool(RULE5), "gate_mode": GATE, "rule_mode": RULES,
      "device": DEVICE, "authorized": True,
-     "cuda_guard_suppressed": bool(_cuda_blocked), "shim": APPLIED,
+     "cuda_guard_suppressed": bool(_cuda_blocked),
+     # The LAB entry records a live absolute path, which makes the artifact machine-specific and
+     # turns a public result into something no reader can reproduce. Record the label, not the path.
+     "shim": [a if not a.startswith("LAB->") else "LAB->$VYRA_LAB" for a in APPLIED],
      "question": "does jittering filler length by +-8 around each trained distance repair the "
                  "distance sharpness Experiment X left behind, or only move the sharp points?",
      "design": "arm R as shipped; continuation from X step-200; one jittered arm, each needle slot "
@@ -1115,7 +1118,17 @@ def _selftest_keys():
     return ks
 
 
-_TARGETED = [40, 72]
+# AXIOM / VEX (2026-10-29): the targeted-fix panel asks whether the distances that collapsed in
+# Experiment X (40 and 72) were repaired. Experiment Z does not TRAIN either distance -- Arm A's
+# +/-4 bands are {28,32,36},{60,64,68},{105,109,113} and Arm B has no jitter at all -- so a Z run
+# that inherited this panel would report "targeted 40/72 recovered: NO" no matter how well it
+# trained, and the selftest below would (correctly) refuse to start. Z tests survivability and
+# dose, not repair, so the panel is declared explicitly per run rather than hard-coded to Y's.
+_TARGETED = [int(x) for x in os.environ.get("Y_TARGETED", "40,72").split(",") if x.strip()]
+if not _TARGETED:
+    print("TARGETED_PANEL_DISABLED: this run does not test repair of any specific distance, so the "
+          "targeted_fix panel is empty and must not be read as a negative result. Z's question is "
+          "whether jitter survives at an adequate dose, which is a different claim.", flush=True)
 
 outcomes = {}
 # arm id -> (dataset, learning rate). Only the LR varies; architecture and data handling are shared.
@@ -1310,7 +1323,9 @@ else:
     held = {d: all(ret[a][d]["held"] for a in ARM_SPEC if ret[a][d]["held"] is not None)
             for d in TARGETS}
     tf = {a: V["targeted_fix"][a] for a in ARM_SPEC}
-    tgt_ok = all(tf[a][str(d)]["recovered"] for a in ARM_SPEC for d in _TARGETED)
+    # an empty panel means this run never claimed to test repair; vacuous truth, and the verdict
+    # line says so, so it cannot be read as "recovered"
+    tgt_ok = all(tf[a][str(d)]["recovered"] for a in ARM_SPEC for d in _TARGETED) if _TARGETED else True
     gap_ok = all(tf[a]["gap_mean"]["improved"] for a in ARM_SPEC)
     parts = []
     if len(TARGETS) == 0:
@@ -1326,9 +1341,13 @@ else:
     # printed next to it so memorisation cannot pass as retention
     parts.append("anchors retained (train): " + ", ".join(
         f"{d}={'yes' if _htr[d] else 'NO'}" for d in TARGETS))
-    parts.append("targeted 40/72 recovered: " +
-                 ", ".join(f"{d}={'yes' if tf[a][str(d)]['recovered'] else 'NO'}"
-                           for a in ARM_SPEC for d in _TARGETED))
+    if _TARGETED:
+        parts.append("targeted " + "/".join(str(d) for d in _TARGETED) + " recovered: " +
+                     ", ".join(f"{d}={'yes' if tf[a][str(d)]['recovered'] else 'NO'}"
+                               for a in ARM_SPEC for d in _TARGETED))
+    else:
+        parts.append("targeted repair panel: NOT TESTED by this run (no distance-specific fix "
+                     "in scope)")
     parts.append("never-trained gap mean improved: " + ", ".join(
         f"{tf[a]['gap_mean']['before']}->{tf[a]['gap_mean']['after']}" for a in ARM_SPEC))
     if tgt_ok and gap_ok and V["all_trained_distances_learned"]:
