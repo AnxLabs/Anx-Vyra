@@ -8,6 +8,7 @@ so every test here asserts the refusal path, not just the happy path.
 import ast
 import pathlib
 import subprocess
+import sys
 
 import pytest
 
@@ -87,9 +88,17 @@ def _builder_env(arm=None, **over):
     import os
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("Z_", "Y_", "T2_", "VYRA_"))}
-    env.update({"PYTHONPATH": "/workspace/vyra1r-venv/lib/python3.13/site-packages",
-                "T2_SRC": "/workspace/vyra-continuation/expY/bundleY",
-                "VYRA_LAB": "/tmp/zt_lab", "Z_OUT": "/tmp/zt_out"})
+    # Paths come from the environment so this test carries no machine-specific location into a
+    # public repo. Point Z_TEST_SRC at a bundle holding corpus.pt/probe_Q.pt to run it; without one
+    # the builder-refusal tests skip, since they need real artifacts to reach the checks.
+    src = os.environ.get("Z_TEST_SRC")
+    if not src:
+        pytest.skip("Z_TEST_SRC not set; builder refusal tests need a real artifact bundle")
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="ztest_")
+    env.update({"PYTHONPATH": os.environ.get("Z_TEST_PYTHONPATH", ""),
+                "T2_SRC": src, "VYRA_LAB": os.path.join(tmp, "lab"),
+                "Z_OUT": os.path.join(tmp, "out")})
     if arm:
         env["Z_ARM"] = arm
     env.update(over)
@@ -104,7 +113,7 @@ def _builder_env(arm=None, **over):
 def test_builder_refuses_misconfigured_arms(over, needle):
     """Every one of these produced a corpus that reported itself as Arm A while not being it."""
     env = _builder_env(**over)
-    p = subprocess.run(["/workspace/anx-venv/bin/python", str(BUILDER)],
+    p = subprocess.run([sys.executable, str(BUILDER)],
                        env=env, capture_output=True, text=True, timeout=300)
     assert p.returncode != 0, f"builder accepted a misconfigured arm: {over}"
     assert needle in (p.stdout + p.stderr), (p.stdout + p.stderr)[-800:]
