@@ -569,10 +569,22 @@ def metric_gate(tag, arm=None):
                          f"{sorted(REF)}. Every arm needs its own entry.")
     print(f"REF resolved by {resolved_by}", flush=True)
     got = evaluate_light()
+    # TYPE-MATCHED GATE. Experiment Y compared record-exact on the GPU against a CPU reference
+    # produced by cpu_ref.py's rec_exact(), which divides TOKEN-level correctness by token count.
+    # That is token accuracy despite the name, so two of Y's three comparisons were record-vs-token
+    # and happened to look clean only because cpu_ref.json had been overwritten with record-level
+    # values. Every field below is named for the metric it holds, and both sides are token accuracy.
     out = {"ran": True, "mode": "metrics", "label": tag, "arm": arm, "tolerance": TOL,
-           "gpu": {"F32_probe": got["train_F32"].get("record_exact"),
-                   "needle32": got["needle32_train"]["record_exact"],
+           "metric": "token_acc",
+           "gpu": {"F32_probe_tok": got["train_F32"].get("token_acc"),
+                   "needle32_tok": got["needle32_train"]["token_acc"],
                    "valid_tok": got["orig_valid"]["token_acc"]},
+           # record-level numbers are reported for the record but never gated: the CPU reference
+           # does not compute them, so comparing them would repeat Y's defect.
+           "gpu_record_exact_ungated": {
+                   "F32_probe": got["train_F32"].get("record_exact"),
+                   "needle32": got["needle32_train"]["record_exact"],
+                   "valid": got["orig_valid"].get("record_exact")},
            "cpu_reference": ref}
     agree, delta = {}, {}
     for k, v in out["gpu"].items():
