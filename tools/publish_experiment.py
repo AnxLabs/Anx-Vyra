@@ -12,7 +12,7 @@ One run does the whole publication:
   5. scan every byte about to be committed for secrets and private data (abort on any hit);
   6. refuse binaries and anything that is not valid UTF-8;
   7. run the test suite;
-  8. git add / commit / push to main, then print a report.
+  8. git add / commit / push the current branch (never main or master), then print a report.
 
 Every check is fail-closed: any failure means nothing is staged, committed or pushed, and the
 results stay private. The script is safe to re-run; an identical publication is a no-op.
@@ -28,9 +28,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 REPO_DEFAULT = Path(__file__).resolve().parent.parent
@@ -48,18 +50,46 @@ class PublishError(RuntimeError):
 # secret + privacy patterns
 # --------------------------------------------------------------------------------------------
 # (name, regex, kind).  kind is "secret" or "privacy"; both are fatal.
-# Personal identifiers are NOT stored in this file. Splitting them into concatenated
-# fragments was worse than useless: the fragments still ship the handle to every reader
-# of this repo, while the scanner keeps hunting the assembled literal. Load them from the
-# environment instead. When unset, the privacy pattern is simply inactive; the caller is
-# expected to set VYRA_PRIVATE_HANDLES (comma-separated) in its own environment.
-HANDLES = tuple(h.strip() for h in os.environ.get("VYRA_PRIVATE_HANDLES", "").split(",") if h.strip())
+# Personal identifiers are NOT stored in this file. Load them from the environment
+# at scan time (VYRA_PRIVATE_HANDLES, comma-separated). When that variable is unset
+# the personal_handle pattern is omitted. Publication then refuses, unless
+# --allow-no-handle-check is passed: a missing check must not be reported as a
+# clean scan. Patterns are rebuilt on every scan so tests can set the variable
+# without depending on whatever was in the environment at import.
+#
+# An empty alternation matches every position in every file. _compile_rows rejects
+# any pattern that matches the empty string, including a handle alternation built
+# from a blank list.
 HOST_DIRS = ("work" + "space", "ho" + "me", "kag" + "gle")
 
-SCAN_PATTERNS = [
+# Credential-shaped env assignment. Relative paths (./lab, ./out) and obvious
+# placeholders are how this repo documents its own commands; a value with a digit
+# and no placeholder shape is the leak.
+_ENV_ASSIGN = (
+    r"(?m)^\s*(?:export\s+)?[A-Z][A-Z0-9_]{2,}=(?!\./)(?!\.\./)(?!\"\./)(?!'\./)"
+    r"(?!\"\.\./)(?!'\.\./)"
+    r"(?![\"']?(?i:changeme|placeholder|example|todo|redacted|xxx+|none|null|true|false"
+    r"|your[-_][A-Za-z0-9_-]+)[\"']?(?:\s|$))"
+    r"(?=[^\s]*\d)[^\s]{6,}"
+)
+# Approval tokens: a key named approved + _by, or initials followed by a short
+# message id (letter t, three digits, u or s). The bare license/JSON word is not a token.
+_APPROVAL = r"(?i)\bapproved" + r"_by\b|\b[A-Za-z]{2}\s+t\d{3}[us]\b|\bt4\d\d[us]\b"
+# kaggle.json is a secret when it is a path to the credentials file, not when a
+# gitignore lists the bare filename.
+_KAGGLE_JSON = r"(?i)(?:(?:~[/\\]|\.kaggle[/\\])kaggle\.json\b|[/\\][^\s]*kaggle\.json\b)"
+# Weight paths that are absolute or home-relative, plus a bare snapshot whose
+# name ends in _step and digits. A relative bundle default is not one of those.
+_CHECKPOINT = (
+    r"(?:(?:(?<![A-Za-z0-9._-])~[/\\]|(?<![A-Za-z0-9._-])[A-Za-z]:\\"
+    r"|(?<![A-Za-z0-9._-])/)[\w./\\-]*\.(?:pt|pth|bin|safetensors|gguf|pkl)\b"
+    r"|[\w-]+_step\d+\.(?:pt|pth)\b)"
+)
+
+_BASE_PATTERN_ROWS = [
     # --- credentials ----------------------------------------------------------------
     ("kaggle_token_env", r"(?i)\bKAGGLE_(?:API_)?(?:KEY|TOKEN|USERNAME)\b\s*[:=]\s*\S+", "secret"),
-    ("kaggle_json", r"(?i)kaggle\.json", "secret"),
+    ("kaggle_json", _KAGGLE_JSON, "secret"),
     ("github_token", r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}", "secret"),
     ("github_pat", r"\bgithub_pat_[A-Za-z0-9_]{16,}", "secret"),
     ("aws_access_key", r"\b(?:AKIA|ASIA)[0-9A-Z]{12,}", "secret"),
@@ -70,25 +100,88 @@ SCAN_PATTERNS = [
     ("private_key_block", r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "secret"),
     ("bearer_token", r"(?i)\bbearer\s+[A-Za-z0-9._\-]{12,}", "secret"),
     ("password_assignment", r"(?i)\b(?:password|passwd|pwd)\s*[:=]\s*\S{3,}", "secret"),
-    ("env_style_assignment", r"(?m)^\s*(?:export\s+)?[A-Z][A-Z0-9_]{2,}=(?!\s*$)\S+", "secret"),
+    ("env_style_assignment", _ENV_ASSIGN, "secret"),
     # --- privacy ---------------------------------------------------------------------
     ("email_address", r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", "privacy"),
-    # Only included when the caller supplied handles. An empty alternation would match
-    # every position in every file, which is why this cannot be a plain join().
-    *([("personal_handle", "(?i)(?:" + "|".join(re.escape(h) for h in HANDLES) + ")", "privacy")] if HANDLES else []),
     ("absolute_host_path",
      "|".join("/" + d + "/" for d in HOST_DIRS) + r"|[A-Za-z]:\\(?![ntr0bfv]\b)",
      "privacy"),
     ("windows_hostname", r"\bDESKTOP-[A-Z0-9]{4,}\b", "privacy"),
     ("kaggle_slug", r"(?i)kaggle\.com/(?:datasets|code)/\S+|\bvyra-[a-z0-9]+-bundle\b"
                     r"|/(?:datasets|code)/[a-z0-9_-]+/[a-z0-9_-]+", "privacy"),
-    ("internal_approval", r"(?i)\bauthori" + "[sz]ed" + r"\b|\bapproved" + r"_by\b"
-                         r"|\bt4\d\d[us]\b", "privacy"),
-    ("checkpoint_filename",
-     r"(?:[\w.-]+/[\w.-]+\.(?:pt|pth|bin|safetensors|gguf|pkl)\b"
-     r"|[\w-]+_step\d+\.(?:pt|pth))", "privacy"),
+    ("internal_approval", _APPROVAL, "privacy"),
+    ("checkpoint_filename", _CHECKPOINT, "privacy"),
 ]
-SCAN_PATTERNS = [(n, re.compile(p), k) for (n, p, k) in SCAN_PATTERNS]
+
+
+def private_handles() -> tuple[str, ...]:
+    """Handles from VYRA_PRIVATE_HANDLES, with blanks dropped. Never a real literal."""
+    raw = os.environ.get("VYRA_PRIVATE_HANDLES", "")
+    return tuple(h.strip() for h in raw.split(",") if h.strip())
+
+
+def _matches_empty(rx: re.Pattern) -> bool:
+    return rx.search("") is not None
+
+
+def personal_handle_regex(handles: tuple[str, ...]) -> str | None:
+    """Return the handle pattern, or None when the check is inactive.
+
+    A blank list must not become `(?:)`, which matches the empty string at every
+    position. Each handle is escaped so the value is a literal, not an expression.
+    """
+    parts = [re.escape(h) for h in handles if h]
+    if not parts:
+        return None
+    if any(part == "" for part in parts):
+        raise PublishError("personal_handle alternation would be empty")
+    body = "(?i)(?:" + "|".join(parts) + ")"
+    if _matches_empty(re.compile(body)):
+        raise PublishError("personal_handle pattern matches the empty string")
+    return body
+
+
+def build_scan_patterns() -> list[tuple[str, re.Pattern, str]]:
+    """Compile the active patterns from the current environment.
+
+    personal_handle is inserted after email_address when handles are configured,
+    which is what makes the reported group count 20 rather than 19.
+    """
+    handle_body = personal_handle_regex(private_handles())
+    rows: list[tuple[str, str, str]] = []
+    for name, pat, kind in _BASE_PATTERN_ROWS:
+        rows.append((name, pat, kind))
+        if name == "email_address" and handle_body is not None:
+            rows.append(("personal_handle", handle_body, "privacy"))
+    compiled = []
+    for name, pat, kind in rows:
+        if not pat or pat == "(?:)":
+            raise PublishError(f"pattern {name} is empty")
+        rx = re.compile(pat)
+        if _matches_empty(rx):
+            raise PublishError(f"pattern {name} matches the empty string")
+        compiled.append((name, rx, kind))
+    return compiled
+
+
+def handle_check_active() -> bool:
+    return any(name == "personal_handle" for name, _, _ in build_scan_patterns())
+
+
+def pattern_group_count() -> int:
+    return len(build_scan_patterns())
+
+
+def scan_report_line() -> str:
+    """The publication-report scan line.
+
+    The count and the wording both come from whether personal_handle was actually
+    compiled. The skipped line must not contain the word "clean" at all.
+    """
+    n = pattern_group_count()
+    if handle_check_active():
+        return f"scan       : clean ({n} pattern groups, 0 hits)"
+    return f"scan       : HANDLE CHECK SKIPPED ({n} pattern groups, --allow-no-handle-check)"
 
 BINARY_EXT = {
     ".pt", ".pth", ".bin", ".safetensors", ".gguf", ".pkl", ".ckpt", ".npy", ".npz", ".onnx",
@@ -108,7 +201,7 @@ PALETTE = {
 def scan_text(name: str, text: str) -> list[str]:
     """Return human-readable hits for one blob of text."""
     hits = []
-    for pat_name, rx, kind in SCAN_PATTERNS:
+    for pat_name, rx, kind in build_scan_patterns():
         for m in rx.finditer(text):
             line_no = text.count("\n", 0, m.start()) + 1
             snippet = m.group(0)
@@ -737,6 +830,73 @@ def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
     return cp
 
 
+def bytes_to_scan(repo: Path, rel: str) -> bytes:
+    """Bytes that would be published for `rel`.
+
+    The index is what an unscoped `git commit` records. `git show :path` fails
+    when the path is not in the index (a candidate that stayed untracked), and
+    in that case the worktree file is the only bytes that exist.
+    """
+    cp = subprocess.run(["git", "show", f":{rel}"], cwd=repo, capture_output=True)
+    if cp.returncode == 0:
+        return cp.stdout
+    path = repo / rel
+    if path.is_file():
+        return path.read_bytes()
+    err = cp.stderr.decode("utf-8", errors="replace").strip()
+    raise PublishError(f"cannot read {rel} from the index or the worktree: {err or 'missing'}")
+
+
+def commit_scanned(repo: Path, paths: list[str], subject: str, body: str) -> None:
+    """Commit the index blobs of `paths` and nothing else.
+
+    An unscoped `git commit` publishes the entire index, including files this
+    run never scanned. `git commit -- paths` limits the path set, but on this
+    git it records the worktree rather than the index. The worktree is checked
+    against the index first, so the pathspec commit records the bytes that were
+    scanned. The resulting commit is then checked: an extra path (for example
+    one a hook added) or a blob that does not match the index resets the commit
+    and refuses.
+    """
+    if not paths:
+        raise PublishError("refusing to commit: no scanned paths")
+    ordered: list[str] = []
+    for rel in paths:
+        if rel not in ordered:
+            ordered.append(rel)
+    index_hash: dict[str, str] = {}
+    for rel in ordered:
+        indexed = bytes_to_scan(repo, rel)
+        worktree = repo / rel
+        if not worktree.is_file() or worktree.read_bytes() != indexed:
+            raise PublishError(
+                f"{rel} worktree bytes diverged from the indexed bytes that were scanned; "
+                f"refusing to commit"
+            )
+        index_hash[rel] = git(repo, "rev-parse", f":{rel}").stdout.strip()
+    parent = git(repo, "rev-parse", "HEAD").stdout.strip()
+    # Pathspec so only these paths are eligible. The worktree check above is what
+    # makes this record the scanned index bytes.
+    git(repo, "commit", "-m", subject, "-m", body, "--", *ordered)
+    changed = [p for p in git(
+        repo, "diff-tree", "--no-commit-id", "--name-only", "-r", parent, "HEAD"
+    ).stdout.splitlines() if p]
+    extra = [p for p in changed if p not in ordered]
+    mismatch = []
+    for rel, blob in index_hash.items():
+        got = git(repo, "rev-parse", f"HEAD:{rel}").stdout.strip()
+        if got != blob:
+            mismatch.append(rel)
+    if extra or mismatch:
+        git(repo, "reset", "--soft", parent, check=False)
+        detail = []
+        if extra:
+            detail.append("unscanned paths: " + ", ".join(extra))
+        if mismatch:
+            detail.append("blob mismatch: " + ", ".join(mismatch))
+        raise PublishError("commit did not match the scanned index; reset. " + "; ".join(detail))
+
+
 def commit_url(repo: Path, sha: str) -> str:
     url = git(repo, "remote", "get-url", "origin").stdout.strip()
     url = re.sub(r"\.git$", "", url)
@@ -835,6 +995,9 @@ def find_profile(results_dir: Path):
     return None
 
 
+PROTECTED_BRANCHES = {"main", "master"}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Publish one ANX-VYRA experiment, fail-closed.")
     ap.add_argument("results_dir", help="experiment results directory (must contain SHA256SUMS)")
@@ -844,18 +1007,73 @@ def main(argv=None) -> int:
     ap.add_argument("--prose-mode", choices=("auto", "insert", "skip"), default="auto")
     ap.add_argument("--chart-name", default=None,
                     help="chart filename stem under docs/ (default: distance_profile_<exp>)")
-    ap.add_argument("--dry-run", action="store_true", help="run every check, write files, do not commit")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="run every check, then restore the tree byte-for-byte; do not commit")
     ap.add_argument("--no-push", action="store_true", help="commit but do not push")
     ap.add_argument("--allow-missing-profile", action="store_true")
+    ap.add_argument("--allow-no-handle-check", action="store_true",
+                    help="publish even though VYRA_PRIVATE_HANDLES is unset; the report will not say the scan was clean")
     args = ap.parse_args(argv)
 
     repo = Path(args.repo).resolve()
     results_dir = Path(args.results_dir).resolve()
     exp, slug = args.experiment, args.slug
 
-    staged_now = []
+    staged_now: list[str] = []
+    snapshots: dict[str, bytes | None] = {}
     pre_staged = set(p for p in git(repo, "diff", "--cached", "--name-only").stdout.split("\n") if p)
+
+    def _snapshot(path: Path) -> None:
+        rel = str(path.relative_to(repo))
+        snapshots[rel] = path.read_bytes() if path.is_file() else None
+
+    def _restore() -> None:
+        # Unstage what this run added, then put the snapshotted files back.
+        # Reset before rewriting: a newly added file becomes untracked, and the
+        # snapshot then deletes it. Never `git rm --cached` (that stages a deletion
+        # of a tracked file).
+        for rel in staged_now:
+            if rel not in pre_staged:
+                git(repo, "reset", "-q", "--", rel, check=False)
+        for rel, data in snapshots.items():
+            path = repo / rel
+            if data is None:
+                if path.exists():
+                    path.unlink()
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+        # pytest writes a cache next to the suite. It is gitignored, and a dry run
+        # or an abort must not leave it behind.
+        for leftover in (repo / ".pytest_cache", repo / "tests" / "__pycache__"):
+            if leftover.exists():
+                shutil.rmtree(leftover, ignore_errors=True)
+
+    def _abort(exc: BaseException, unexpected: bool = False) -> int:
+        _restore()
+        print("\nPUBLICATION ABORTED - results stay PRIVATE.", file=sys.stderr)
+        print(f"reason: {exc}", file=sys.stderr)
+        if unexpected:
+            print("unexpected error; publication aborted and the tree was restored:", file=sys.stderr)
+            traceback.print_exc()
+        print("nothing was committed and nothing was pushed.", file=sys.stderr)
+        print("working tree restored.", file=sys.stderr)
+        return 2
+
     try:
+        if not handle_check_active() and not args.allow_no_handle_check:
+            raise PublishError(
+                "VYRA_PRIVATE_HANDLES is unset, so the personal_handle check is inactive. "
+                "Refusing to publish. Set VYRA_PRIVATE_HANDLES (comma-separated) or pass "
+                "--allow-no-handle-check."
+            )
+
+        chart_stem = args.chart_name or f"distance_profile_{exp.lower()}"
+        out_json = repo / "results" / f"experiment_{exp.lower()}_{slug}.json"
+        out_svg = repo / "docs" / f"{chart_stem}.svg"
+        for path in (out_json, out_svg, repo / "README.md", repo / "docs" / "EXPERIMENTS.md"):
+            _snapshot(path)
+
         print(f"[1/8] verifying manifest in {results_dir}")
         verified = verify_manifest(results_dir)
         print(f"      ok: {len(verified)} files match SHA256SUMS")
@@ -876,14 +1094,12 @@ def main(argv=None) -> int:
 
         print(f"[2/8] curating {raw_path.name}")
         curated = curate(raw, profile, exp)
-        out_json = repo / "results" / f"experiment_{exp.lower()}_{slug}.json"
         out_json.parent.mkdir(parents=True, exist_ok=True)
         existed = out_json.exists()
         out_json.write_text(json.dumps(curated, indent=1, sort_keys=False) + "\n", encoding="utf-8")
         print(f"      wrote {out_json.relative_to(repo)}" + (" (updated)" if existed else ""))
 
         print(f"[3/8] rendering chart")
-        chart_stem = args.chart_name or f"distance_profile_{exp.lower()}"
         if profile:
             trained = curated.get("setup", {}).get("distances_trained")
             footer = ("probe accuracy is token-level, not record-exact")
@@ -894,7 +1110,6 @@ def main(argv=None) -> int:
                 profile, footer=footer,
                 title=f"Experiment {exp}: token accuracy across distance, before and after "
                       f"200 steps")
-            out_svg = repo / "docs" / f"{chart_stem}.svg"
             existed = out_svg.exists()
             out_svg.write_text(svg, encoding="utf-8")
             print(f"      wrote {out_svg.relative_to(repo)}" + (" (updated)" if existed else ""))
@@ -906,28 +1121,33 @@ def main(argv=None) -> int:
                     upsert_readme(repo, exp, slug, curated, args.prose_mode)):
             print("      " + msg)
 
-        print("[5/8] staging candidates and scanning")
+        print("[5/8] staging candidates and scanning every staged path")
+        # The generated outputs are staged here. The scan is NOT limited to them:
+        # the previous Y publication reported a full pattern count while tools/
+        # itself was never a candidate, so a staged copy of this file was not read.
         candidates = [str(out_json.relative_to(repo)), "docs/EXPERIMENTS.md", "README.md"]
         if profile:
             candidates.append(f"docs/{chart_stem}.svg")
         for rel in candidates:
-            git(repo, "add", "-A", rel)
+            git(repo, "add", "-A", "--", rel)
             staged_now.append(rel)
-        staged = [p for p in git(repo, "diff", "--cached", "--name-only",
-                                 "--", *candidates).stdout.split("\n") if p]
-        untracked = [p for p in git(repo, "ls-files", "--others", "--exclude-standard",
-                                    "--", *candidates).stdout.split("\n") if p]
-        if not staged and not untracked:
+        index_paths = [p for p in git(repo, "diff", "--cached", "--name-only").stdout.splitlines() if p]
+        untracked = [p for p in git(
+            repo, "ls-files", "--others", "--exclude-standard", "--", *candidates
+        ).stdout.splitlines() if p]
+        scan_list = list(dict.fromkeys([*index_paths, *untracked]))
+        if not scan_list:
+            if args.dry_run:
+                _restore()
             print("      nothing to publish - already up to date, no-op")
             return 0
-        staged = staged + untracked
         hits, binaries = [], []
-        for rel in staged:
+        for rel in scan_list:
             p = repo / rel
-            if p.suffix.lower() in BINARY_EXT or WEIGHT_SNAP.search(p.name):
+            if p.suffix.lower() in BINARY_EXT or WEIGHT_SNAP.search(Path(rel).name):
                 binaries.append(f"{rel} (binary/weight file: {p.name})")
                 continue
-            blob = p.read_bytes()
+            blob = bytes_to_scan(repo, rel)
             if b"\x00" in blob:
                 binaries.append(f"{rel} (contains NUL bytes)")
                 continue
@@ -942,9 +1162,16 @@ def main(argv=None) -> int:
                                + "\n  this repository is text-only")
         if hits:
             raise PublishError("secret or privacy scan FAILED:\n    " + "\n    ".join(hits))
-        print(f"      clean: {len(staged)} staged files, 0 secret hits, 0 privacy hits, 0 binaries")
+        # Commit exactly the index paths we just scanned. Untracked leftovers are
+        # not in the index, so they are not part of the commit.
+        to_commit = index_paths
+        if handle_check_active():
+            print(f"      clean: {len(to_commit)} staged files, 0 secret hits, 0 privacy hits, 0 binaries")
+        else:
+            print(f"      no hits: {len(to_commit)} staged files, 0 secret hits, "
+                  f"0 privacy hits, 0 binaries, personal_handle inactive")
 
-        print("[6/8] verifying curated JSON round-trips and is clean")
+        print("[6/8] verifying curated JSON round-trips")
         back = json.loads(out_json.read_text(encoding="utf-8"))
         if back != curated:
             raise PublishError("curated JSON does not round-trip")
@@ -962,32 +1189,45 @@ def main(argv=None) -> int:
             raise PublishError("test suite failed - nothing committed:\n" + (cp.stdout + cp.stderr))
 
         if args.dry_run:
+            _restore()
             print("\nDRY RUN: every check passed; nothing committed, nothing pushed.")
-            print("Files that would be published: " + ", ".join(sorted(staged)))
+            print("Files that would be published: " + ", ".join(sorted(to_commit)))
             return 0
+
+        branch = git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        if not args.no_push and branch in PROTECTED_BRANCHES:
+            raise PublishError(
+                f"refusing to push from branch {branch!r}. "
+                f"Publish from a feature branch; main and master are rejected. "
+                f"Pass --no-push to commit locally without pushing."
+            )
 
         print("[8/8] committing and pushing")
         subject = f"Experiment {exp}: publish results, chart and write-up"
+        if handle_check_active():
+            scan_note = "The personal-handle check was active."
+        else:
+            scan_note = "The personal-handle check was skipped (--allow-no-handle-check)."
         body = ("\n".join([
             "Published by tools/publish_experiment.py.",
             "",
             "Files in this commit:",
-            *[f"  {rel}" for rel in sorted(staged)],
+            *[f"  {rel}" for rel in sorted(to_commit)],
             "",
-            "Verified against the experiment's SHA256SUMS manifest, scanned clean for secrets and",
-            "private paths, and the test suite passed before this commit was created.",
+            "Verified against the experiment's SHA256SUMS manifest.",
+            scan_note,
+            "The test suite passed before this commit was created.",
         ]))
-        git(repo, "commit", "-m", subject, "-m", body)
+        commit_scanned(repo, to_commit, subject, body)
         sha = git(repo, "rev-parse", "HEAD").stdout.strip()
         url = commit_url(repo, sha)
         if not args.no_push:
-            branch = git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
             git(repo, "push", "origin", branch)
 
         print("\n=== PUBLICATION REPORT ===")
         print(f"experiment : {exp}")
-        print(f"files      : " + ", ".join(sorted(staged)))
-        print(f"scan       : clean ({len(SCAN_PATTERNS)} pattern groups, 0 hits)")
+        print(f"files      : " + ", ".join(sorted(to_commit)))
+        print(scan_report_line())
         print(f"tests      : {tail[-1] if tail else 'passed'}")
         print(f"commit     : {sha}")
         print(f"url        : {url}")
@@ -996,19 +1236,9 @@ def main(argv=None) -> int:
         return 0
 
     except PublishError as exc:
-        # Unstage by resetting these paths to HEAD. This works for both newly added files
-        # (they become untracked again) and modified tracked files (index returns to HEAD).
-        # Never `git rm --cached` here: on a tracked file that stages a deletion.
-        for rel in staged_now:
-            if rel not in pre_staged:
-                git(repo, "reset", "-q", "--", rel, check=False)
-        print("\nPUBLICATION ABORTED - results stay PRIVATE.", file=sys.stderr)
-        print(f"reason: {exc}", file=sys.stderr)
-        print("nothing was committed and nothing was pushed.", file=sys.stderr)
-        if staged_now:
-            print("files written but left uncommitted (review or delete): "
-                  + ", ".join(sorted(set(staged_now))), file=sys.stderr)
-        return 2
+        return _abort(exc)
+    except Exception as exc:
+        return _abort(exc, unexpected=True)
 
 
 if __name__ == "__main__":
