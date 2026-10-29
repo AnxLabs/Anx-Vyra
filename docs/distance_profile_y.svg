@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="420" viewBox="0 0 780 420" font-family="system-ui,sans-serif">
+<rect width="780" height="420" fill="#fff"/>
+<text x="390" y="22" font-size="13" fill="#111827" text-anchor="middle">Experiment Y: record retrieval across distance, before and after 200 steps</text>
+<line x1="72" y1="340.0" x2="736" y2="340.0" stroke="#e5e7eb"/>
+<text x="64" y="344.0" font-size="11" fill="#6b7280" text-anchor="end">0.00</text>
+<line x1="72" y1="269.0" x2="736" y2="269.0" stroke="#e5e7eb"/>
+<text x="64" y="273.0" font-size="11" fill="#6b7280" text-anchor="end">0.25</text>
+<line x1="72" y1="198.0" x2="736" y2="198.0" stroke="#e5e7eb"/>
+<text x="64" y="202.0" font-size="11" fill="#6b7280" text-anchor="end">0.50</text>
+<line x1="72" y1="127.0" x2="736" y2="127.0" stroke="#e5e7eb"/>
+<text x="64" y="131.0" font-size="11" fill="#6b7280" text-anchor="end">0.75</text>
+<line x1="72" y1="56.0" x2="736" y2="56.0" stroke="#e5e7eb"/>
+<text x="64" y="60.0" font-size="11" fill="#6b7280" text-anchor="end">1.00</text>
+<line x1="72" y1="340" x2="736" y2="340" stroke="#9ca3af"/>
+<text x="72.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">24</text>
+<text x="100.6" y="356" font-size="10" fill="#6b7280" text-anchor="middle">28</text>
+<text x="129.1" y="356" font-size="10" fill="#6b7280" text-anchor="middle">32</text>
+<text x="157.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">36</text>
+<text x="186.2" y="356" font-size="10" fill="#6b7280" text-anchor="middle">40</text>
+<text x="300.5" y="356" font-size="10" fill="#6b7280" text-anchor="middle">56</text>
+<text x="329.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">60</text>
+<text x="357.6" y="356" font-size="10" fill="#6b7280" text-anchor="middle">64</text>
+<text x="386.2" y="356" font-size="10" fill="#6b7280" text-anchor="middle">68</text>
+<text x="414.7" y="356" font-size="10" fill="#6b7280" text-anchor="middle">72</text>
+<text x="621.8" y="356" font-size="10" fill="#6b7280" text-anchor="middle">101</text>
+<text x="650.3" y="356" font-size="10" fill="#6b7280" text-anchor="middle">105</text>
+<text x="678.9" y="356" font-size="10" fill="#6b7280" text-anchor="middle">109</text>
+<text x="707.4" y="356" font-size="10" fill="#6b7280" text-anchor="middle">113</text>
+<text x="736.0" y="356" font-size="10" fill="#6b7280" text-anchor="middle">117</text>
+<text x="404.0" y="378" font-size="12" fill="#374151" text-anchor="middle">needle-to-query distance (tokens)</text>
+<text x="16" y="198.0" font-size="12" fill="#374151" text-anchor="middle" transform="rotate(-90 16 198.0)">token accuracy</text>
+<polyline points="72.0,339.1 100.6,339.0 129.1,63.9 157.7,338.9 186.2,58.9 300.5,339.4 329.0,338.5 357.6,60.0 386.2,339.3 414.7,338.4 621.8,338.7 650.3,338.9 678.9,59.3 707.4,339.7 736.0,338.8" fill="none" stroke="#2563eb" stroke-width="2"/>
+<circle cx="72.0" cy="339.1" r="3.2" fill="#2563eb"/>
+<circle cx="100.6" cy="339.0" r="3.2" fill="#2563eb"/>
+<circle cx="129.1" cy="63.9" r="3.2" fill="#2563eb"/>
+<circle cx="157.7" cy="338.9" r="3.2" fill="#2563eb"/>
+<circle cx="186.2" cy="58.9" r="3.2" fill="#2563eb"/>
+<circle cx="300.5" cy="339.4" r="3.2" fill="#2563eb"/>
+<circle cx="329.0" cy="338.5" r="3.2" fill="#2563eb"/>
+<circle cx="357.6" cy="60.0" r="3.2" fill="#2563eb"/>
+<circle cx="386.2" cy="339.3" r="3.2" fill="#2563eb"/>
+<circle cx="414.7" cy="338.4" r="3.2" fill="#2563eb"/>
+<circle cx="621.8" cy="338.7" r="3.2" fill="#2563eb"/>
+<circle cx="650.3" cy="338.9" r="3.2" fill="#2563eb"/>
+<circle cx="678.9" cy="59.3" r="3.2" fill="#2563eb"/>
+<circle cx="707.4" cy="339.7" r="3.2" fill="#2563eb"/>
+<circle cx="736.0" cy="338.8" r="3.2" fill="#2563eb"/>
+<polyline points="72.0,337.9 100.6,339.3 129.1,89.3 157.7,339.1 186.2,56.7 300.5,324.8 329.0,326.7 357.6,115.6 386.2,338.8 414.7,117.1 621.8,319.4 650.3,338.7 678.9,127.6 707.4,340.0 736.0,210.1" fill="none" stroke="#059669" stroke-width="2"/>
+<circle cx="72.0" cy="337.9" r="3.2" fill="#059669"/>
+<circle cx="100.6" cy="339.3" r="3.2" fill="#059669"/>
+<circle cx="129.1" cy="89.3" r="3.2" fill="#059669"/>
+<circle cx="157.7" cy="339.1" r="3.2" fill="#059669"/>
+<circle cx="186.2" cy="56.7" r="3.2" fill="#059669"/>
+<circle cx="300.5" cy="324.8" r="3.2" fill="#059669"/>
+<circle cx="329.0" cy="326.7" r="3.2" fill="#059669"/>
+<circle cx="357.6" cy="115.6" r="3.2" fill="#059669"/>
+<circle cx="386.2" cy="338.8" r="3.2" fill="#059669"/>
+<circle cx="414.7" cy="117.1" r="3.2" fill="#059669"/>
+<circle cx="621.8" cy="319.4" r="3.2" fill="#059669"/>
+<circle cx="650.3" cy="338.7" r="3.2" fill="#059669"/>
+<circle cx="678.9" cy="127.6" r="3.2" fill="#059669"/>
+<circle cx="707.4" cy="340.0" r="3.2" fill="#059669"/>
+<circle cx="736.0" cy="210.1" r="3.2" fill="#059669"/>
+<line x1="602" y1="64.0" x2="618" y2="64.0" stroke="#2563eb" stroke-width="2"/>
+<text x="730" y="68" font-size="11" fill="#2563eb" text-anchor="end">step 0 (start checkpoint)</text>
+<line x1="602" y1="81.0" x2="618" y2="81.0" stroke="#059669" stroke-width="2"/>
+<text x="730" y="85" font-size="11" fill="#059669" text-anchor="end">step 200 (after training)</text>
+<circle cx="129.1" cy="89.3" r="7.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="129.1" y="75.3" font-size="10" fill="#ef4444" text-anchor="middle">-0.089</text>
+<circle cx="357.6" cy="115.6" r="7.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="357.6" y="101.6" font-size="10" fill="#ef4444" text-anchor="middle">-0.196</text>
+<circle cx="678.9" cy="127.6" r="7.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="678.9" y="113.6" font-size="10" fill="#ef4444" text-anchor="middle">-0.241</text>
+<circle cx="602" cy="98.5" r="5.5" fill="none" stroke="#ef4444" stroke-width="2"/>
+<text x="730" y="102" font-size="11" fill="#ef4444" text-anchor="end">degraded between checkpoints</text>
+<text x="404.0" y="402" font-size="10" fill="#6b7280" text-anchor="middle">probe accuracy is token-level, not record-exact</text>
+</svg>

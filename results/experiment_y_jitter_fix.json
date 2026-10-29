@@ -1,0 +1,525 @@
+{
+ "experiment": "Y",
+ "kind": "jittered-distance targeted fix",
+ "question": "Experiment X left two probes degraded at exactly +8 tokens past a trained distance (40 = 32+8, 72 = 64+8). Does training on jittered filler length around each target distance repair that, or does it only move the model's sharp points?",
+ "design": "One variable changed versus Experiment X. Held fixed: arm R as shipped, learning rate 3e-4 applied in the library as well as the config, 200 steps, batch of 5 rows = 2 general replay rows + 3 needle slots, 5 passes per (geometry, row), fresh optimizer. Changed: each needle slot draws its geometry per step from a band of target +-8 in steps of 4, giving 15 trained geometries from 3 anchors. Eleven further distances were never trained and act as the interpolation test: if jitter smoothed the representation, those should lift too.",
+ "setup": {
+  "architecture": "arm R as shipped: 128-token window on layers 0,2,4,6, full causal elsewhere",
+  "params_total": 16427072,
+  "params_active": 8169536,
+  "start": "Experiment X step-200 checkpoint",
+  "init_tensor_sha256": "ba84c9d974844b68966d6c4dc84ff41d51f3afb04940ea5947ccce7987dbb27a",
+  "start_provenance": "cksum.source_experiment = X, cksum.source_step = 200. All 90 start tensors were separately verified bit-identical to Experiment X's step-200 checkpoint (max abs diff 0.0).",
+  "learning_rate": 0.0003,
+  "steps": 200,
+  "batch_rows": 5,
+  "batch_composition": "2 general replay rows + 3 needle slots, one per anchor band",
+  "passes_per_geometry": 5,
+  "rows_per_geometry": 8,
+  "unseen_rows_per_geometry": 40,
+  "rows_per_gap_probe": 20,
+  "fresh_optimizer": true,
+  "optimizer": "SliceAdam",
+  "accelerator": "NVIDIA Tesla T4",
+  "geometries_trained": [
+   24,
+   28,
+   32,
+   36,
+   40,
+   56,
+   60,
+   64,
+   68,
+   72,
+   101,
+   105,
+   109,
+   113,
+   117
+  ],
+  "gap_distances_never_trained": [
+   44,
+   48,
+   52,
+   76,
+   80,
+   84,
+   88,
+   92,
+   96,
+   121,
+   128
+  ]
+ },
+ "bands": {
+  "32": [
+   24,
+   28,
+   32,
+   36,
+   40
+  ],
+  "64": [
+   56,
+   60,
+   64,
+   68,
+   72
+  ],
+  "109": [
+   101,
+   105,
+   109,
+   113,
+   117
+  ]
+ },
+ "jitter_audit": {
+  "note": "Presentations per geometry, measured by the trainer, not assumed. Every one of the 15 geometries received exactly 40 presentations, so the jitter genuinely ran and the result is not a coverage bug.",
+  "presentations_per_geometry": {
+   "24": 40,
+   "28": 40,
+   "32": 40,
+   "36": 40,
+   "40": 40,
+   "56": 40,
+   "60": 40,
+   "64": 40,
+   "68": 40,
+   "72": 40,
+   "101": 40,
+   "105": 40,
+   "109": 40,
+   "113": 40,
+   "117": 40
+  },
+  "distinct_geometries_used_per_band": {
+   "32": 5,
+   "64": 5,
+   "109": 5
+  },
+  "expected_geometries_per_band": 5
+ },
+ "lr_verification": {
+  "requested": 0.0003,
+  "library_LR_at_build": 0.0003,
+  "first_update_max_abs": 0.0003000497817993164,
+  "note": "SliceAdam reads a module-level learning rate at update time rather than a constructor argument, so the first update magnitude is the proof that 3e-4 was actually applied. 3.000498e-04 matches the 3e-4 arms of Experiments U, V and X.",
+  "optimizer_applied_ok": true
+ },
+ "metric_gate": {
+  "mode": "metrics",
+  "tolerance": 0.005,
+  "gpu": {
+   "F32_probe": 0.4166666666666667,
+   "needle32": 0.9416666666666667,
+   "valid_tok": 0.69921875
+  },
+  "cpu_reference": {
+   "F32_probe": 0.4166666666666667,
+   "needle32": 0.9416666666666667,
+   "valid_tok": 0.69921875
+  },
+  "abs_delta": {
+   "F32_probe": 0.0,
+   "needle32": 0.0,
+   "valid_tok": 0.0
+  },
+  "pass": true,
+  "note": "Y starts from X's step-200 weights, so its step-0 gate values are X's FINAL values and not X's own gate reference. The reference here was measured on CPU from this same checkpoint specifically for this run."
+ },
+ "start_baseline": {
+  "note": "Record-exact on the three anchors at step 0, confirming X's end state. The two probes X degraded are 0.000 here because X's own probe numbers are token accuracy while this table is record-exact.",
+  "d32_unseen": 0.828125,
+  "d64_unseen": 0.9041666666666667,
+  "d109_unseen": 0.9083333333333333,
+  "needle32_record_exact": 0.9416666666666667,
+  "F32_probe_record_exact": 0.4166666666666667,
+  "orig_valid_token_acc": 0.69921875,
+  "gap_mean": 0.007954545454545454
+ },
+ "checkpoints": [
+  {
+   "step": 0,
+   "arm_train": 0.8958333333333334,
+   "arm_unseen": 0.8802083333333334,
+   "d32_train": 0.8125,
+   "d32_unseen": 0.828125,
+   "d64_train": 0.9166666666666666,
+   "d64_unseen": 0.9041666666666667,
+   "d109_train": 0.9583333333333334,
+   "d109_unseen": 0.9083333333333333,
+   "needle32_record_exact": 0.9416666666666667,
+   "F32_probe_record_exact": 0.4166666666666667,
+   "valid_token_acc": 0.69921875,
+   "gap_mean": 0.007955,
+   "train_loss": null
+  },
+  {
+   "step": 25,
+   "arm_train": 0.0,
+   "arm_unseen": 0.0,
+   "d32_train": 0.0,
+   "d32_unseen": 0.0,
+   "d64_train": 0.0,
+   "d64_unseen": 0.0,
+   "d109_train": 0.0,
+   "d109_unseen": 0.0,
+   "needle32_record_exact": 0.9208333333333333,
+   "F32_probe_record_exact": 0.3974358974358974,
+   "valid_token_acc": 0.69859375,
+   "gap_mean": 0.0,
+   "train_loss": 3.051081418991089
+  },
+  {
+   "step": 50,
+   "arm_train": 0.2847222222222222,
+   "arm_unseen": 0.09236111111111112,
+   "d32_train": 0.3125,
+   "d32_unseen": 0.14375,
+   "d64_train": 0.0,
+   "d64_unseen": 0.0,
+   "d109_train": 0.5416666666666666,
+   "d109_unseen": 0.13333333333333333,
+   "needle32_record_exact": 0.98125,
+   "F32_probe_record_exact": 0.6410256410256411,
+   "valid_token_acc": 0.70390625,
+   "gap_mean": 0.0,
+   "train_loss": 2.886911153793335
+  },
+  {
+   "step": 75,
+   "arm_train": 0.40451388888888884,
+   "arm_unseen": 0.13819444444444443,
+   "d32_train": 0.484375,
+   "d32_unseen": 0.21875,
+   "d64_train": 0.0625,
+   "d64_unseen": 0.029166666666666667,
+   "d109_train": 0.6666666666666666,
+   "d109_unseen": 0.16666666666666666,
+   "needle32_record_exact": 0.9916666666666667,
+   "F32_probe_record_exact": 0.4935897435897436,
+   "valid_token_acc": 0.70609375,
+   "gap_mean": 0.0,
+   "train_loss": 2.966939926147461
+  },
+  {
+   "step": 100,
+   "arm_train": 0.3038194444444445,
+   "arm_unseen": 0.0638888888888889,
+   "d32_train": 0.515625,
+   "d32_unseen": 0.1625,
+   "d64_train": 0.10416666666666667,
+   "d64_unseen": 0.020833333333333332,
+   "d109_train": 0.2916666666666667,
+   "d109_unseen": 0.008333333333333333,
+   "needle32_record_exact": 0.9729166666666667,
+   "F32_probe_record_exact": 0.38461538461538464,
+   "valid_token_acc": 0.70421875,
+   "gap_mean": 0.0,
+   "train_loss": 3.6237246990203857
+  },
+  {
+   "step": 125,
+   "arm_train": 0.5277777777777778,
+   "arm_unseen": 0.1534722222222222,
+   "d32_train": 0.625,
+   "d32_unseen": 0.34375,
+   "d64_train": 0.375,
+   "d64_unseen": 0.075,
+   "d109_train": 0.5833333333333334,
+   "d109_unseen": 0.041666666666666664,
+   "needle32_record_exact": 0.9958333333333333,
+   "F32_probe_record_exact": 0.42948717948717946,
+   "valid_token_acc": 0.71109375,
+   "gap_mean": 0.0,
+   "train_loss": 2.409730911254883
+  },
+  {
+   "step": 150,
+   "arm_train": 0.6388888888888888,
+   "arm_unseen": 0.14479166666666665,
+   "d32_train": 0.6875,
+   "d32_unseen": 0.271875,
+   "d64_train": 0.4375,
+   "d64_unseen": 0.0625,
+   "d109_train": 0.7916666666666666,
+   "d109_unseen": 0.1,
+   "needle32_record_exact": 0.9791666666666666,
+   "F32_probe_record_exact": 0.46794871794871795,
+   "valid_token_acc": 0.70484375,
+   "gap_mean": 0.0,
+   "train_loss": 2.651111125946045
+  },
+  {
+   "step": 175,
+   "arm_train": 0.796875,
+   "arm_unseen": 0.17708333333333334,
+   "d32_train": 0.828125,
+   "d32_unseen": 0.31875,
+   "d64_train": 0.6875,
+   "d64_unseen": 0.10416666666666667,
+   "d109_train": 0.875,
+   "d109_unseen": 0.10833333333333334,
+   "needle32_record_exact": 0.9833333333333333,
+   "F32_probe_record_exact": 0.4358974358974359,
+   "valid_token_acc": 0.70734375,
+   "gap_mean": 0.0,
+   "train_loss": 1.1833018064498901
+  },
+  {
+   "step": 200,
+   "arm_train": 0.9079861111111112,
+   "arm_unseen": 0.2625,
+   "d32_train": 0.953125,
+   "d32_unseen": 0.425,
+   "d64_train": 0.8125,
+   "d64_unseen": 0.22916666666666666,
+   "d109_train": 0.9583333333333334,
+   "d109_unseen": 0.13333333333333333,
+   "needle32_record_exact": 0.9895833333333334,
+   "F32_probe_record_exact": 0.5512820512820513,
+   "valid_token_acc": 0.7025,
+   "gap_mean": 0.0,
+   "train_loss": 1.7521166801452637
+  }
+ ],
+ "per_geometry_unseen": {
+  "24": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "28": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "32": {
+   "train_before": 0.8125,
+   "train_after": 0.953125,
+   "unseen_before": 0.828125,
+   "unseen_after": 0.425,
+   "trained": true
+  },
+  "36": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "40": {
+   "train_before": 0.90625,
+   "train_after": 0.984375,
+   "unseen_before": 0.921875,
+   "unseen_after": 0.98125,
+   "trained": true
+  },
+  "56": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "60": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "64": {
+   "train_before": 0.9166666666666666,
+   "train_after": 0.8125,
+   "unseen_before": 0.9041666666666667,
+   "unseen_after": 0.22916666666666666,
+   "trained": true
+  },
+  "68": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "72": {
+   "train_before": 0.0,
+   "train_after": 0.75,
+   "unseen_before": 0.0,
+   "unseen_after": 0.135,
+   "trained": true
+  },
+  "101": {
+   "train_before": 0.0,
+   "train_after": 0.03125,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "105": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "109": {
+   "train_before": 0.9583333333333334,
+   "train_after": 0.9583333333333334,
+   "unseen_before": 0.9083333333333333,
+   "unseen_after": 0.13333333333333333,
+   "trained": true
+  },
+  "113": {
+   "train_before": 0.0,
+   "train_after": 0.0,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  },
+  "117": {
+   "train_before": 0.0,
+   "train_after": 0.2916666666666667,
+   "unseen_before": 0.0,
+   "unseen_after": 0.0,
+   "trained": true
+  }
+ },
+ "per_gap_distance": {
+  "44": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "48": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "52": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "76": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "80": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "84": {
+   "before": 0.0875,
+   "after": 0.0,
+   "trained": false
+  },
+  "88": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "92": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "96": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "121": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  },
+  "128": {
+   "before": 0.0,
+   "after": 0.0,
+   "trained": false
+  }
+ },
+ "final": {
+  "needle32_record_exact": 0.9895833333333334,
+  "orig_valid_token_acc": 0.7025,
+  "F32_probe_record_exact": 0.5512820512820513,
+  "gap_mean": 0.0
+ },
+ "retention": {
+  "needle32_record_exact": {
+   "before": 0.9416666666666667,
+   "after": 0.9895833333333334
+  },
+  "orig_valid_token_acc": {
+   "before": 0.69921875,
+   "after": 0.7025
+  },
+  "F32_probe_record_exact": {
+   "before": 0.4166666666666667,
+   "after": 0.5512820512820513,
+   "floor": 0.266667
+  }
+ },
+ "verdict": {
+  "machine_verdict": "anchors learned: 32=yes, 64=yes, 109=yes; anchors retained: 32=yes, 64=yes, 109=yes; targeted 40/72 recovered: 40=yes, 72=yes; never-trained gap mean improved: 0.007955->0.0; PARTIAL - the trained band edges recovered but never-trained distances did not improve, so the model moved its sharp points rather than smoothing",
+  "headline": "NEGATIVE. Jitter did not smooth the distance representation; it redistributed the sharp points.",
+  "band_edges": {
+   "40": "0.922 unseen at step 0 -> 0.981 at step 200 record-exact (token acc 0.990 -> 0.998). It was already working before this run, so its 'recovered' flag is not a repair: the machine compared a record-exact column against X's token-accuracy probe. It gained a little, it was not fixed.",
+   "72": "The one genuine gain. Unseen token accuracy 0.006 -> 0.785, record-exact 0.000 -> 0.135. This is X's other +8 offset, which X had collapsed to zero, so jitter did teach retrieval at 72 where none existed."
+  },
+  "anchors_degraded_on_unseen": {
+   "32": {
+    "before": 0.828125,
+    "after": 0.425
+   },
+   "64": {
+    "before": 0.9041666666666667,
+    "after": 0.22916666666666666
+   },
+   "109": {
+    "before": 0.9083333333333333,
+    "after": 0.13333333333333333
+   }
+  },
+  "never_learned_geometries": {
+   "distances": [
+    24,
+    28,
+    36,
+    56,
+    60,
+    68,
+    105,
+    113
+   ],
+   "note": "These trained geometries ended at exactly 0.000 TRAIN record-exact despite 40 presentations each. They did not learn nothing: their training-row token accuracy is 0.09 to 0.56, so they fitted the filler format partially but never completed a full record. State it as failure to reach record level, not as zero learning.",
+   "train_token_acc": {
+    "24": 0.1875,
+    "28": 0.21484375,
+    "36": 0.091796875,
+    "56": 0.3854166666666667,
+    "60": 0.4348958333333333,
+    "68": 0.19375,
+    "105": 0.55859375,
+    "113": 0.5572916666666666
+   }
+  },
+  "gap_distances": "All eleven never-trained distances are 0.000 record-exact at step 200; the record-exact gap mean fell from 0.007955 to 0.000. Token accuracy agrees: the mean fell from 0.0666 to 0.0228, and the loss is concentrated in one distance, 84, which fell 0.7016 to 0.1656 while the other ten sat under 0.01 before and after. No never-trained distance produced a single exact record, so no interpolation happened."
+ },
+ "limitations": [
+  "Single seed, single arm, one band width and one jitter granularity. This does not establish that no jitter scheme can work.",
+  "Confound: per-geometry row diversity fell relative to X. X gave each distance 40 distinct rows; Y gives each of 15 geometries only 8 distinct rows, so each geometry's 40 presentations come from 8 rows. Part of the unseen degradation is plausibly this reduced diversity rather than jitter as such.",
+  "The gap probes use 20 rows each, so differences below roughly 0.05 record-exact are not resolvable."
+ ],
+ "comparison_to_x": "Experiment X, one arm over three distances with 40 distinct rows each, ended with unseen record-exact 0.813 / 0.929 / 0.967 at 32 / 64 / 109. Y starts from exactly those weights and, after 200 steps of jittered exposure at the same rate, ends at 0.425 / 0.229 / 0.133 on the same unseen rows. Jitter within +-8 of each target did not repair X's sharpness; it degraded the anchors and left every other band geometry it trained unlearned."
+}

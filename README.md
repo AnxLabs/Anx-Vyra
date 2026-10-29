@@ -245,7 +245,39 @@ We have not shown that ANX-VYRA scales, or that these findings transfer to large
 On interference specifically, the picture is now split rather than wholly negative: a mixed-distance
 run does learn several distances and retain the earlier one (finding 2), but it degrades untrained
 neighbouring distances, and it has not been shown to generalise to a *continuous* range of distances
-rather than a trained set of them. The jittered-filler fix proposed for that is unrun.
+rather than a trained set of them. The jittered-filler fix proposed for that was run as
+Experiment Y, and it did not work (finding 5).
+
+### 5. Y — (generated draft)
+
+**Jittering the distance did not smooth it.** Experiment Y took X's ending weights and trained
+with filler length jittered by ±8 around each of the three anchors, turning three trained distances
+into fifteen, with eleven further distances never trained as a test of interpolation. The test failed:
+no never-trained distance produced a single exact record, and their mean token accuracy fell from
+0.067 to 0.023. It also degraded the anchors it was meant to repair, to 0.425 / 0.229 / 0.133
+record-exact on the same unseen rows where X held 0.813 / 0.929 / 0.967 (token accuracy 0.883 / 0.790
+/ 0.748, down from 0.972 / 0.986 / 0.989). Eight of the fifteen geometries it trained finished at
+exactly zero training record-exact despite forty presentations each, though partial token-level
+learning did occur there.
+
+One thing the run did buy: distance 72, X's other collapsed +8 offset, went from 0.006 to 0.785 token
+accuracy on unseen rows. So the fix moved capability to the band edges at the cost of the anchors
+rather than smoothing anything.
+
+The conclusion is narrower than "jitter is bad" and stronger than "that fix didn't work": within a
+single run, exposure to a band of neighbouring distances bought no generalisation across that band.
+The distance-sharp behaviour seen in X is not a training-mix artefact that another variation of the
+data mix can regularise away. A different mechanism, such as distance-relative position features, is
+what the evidence now points at. One caveat belongs with the result: Y spread fifteen geometries
+across eight rows each where X gave each distance forty, so part of the unseen degradation may be
+reduced row diversity rather than jitter itself. Details and per-geometry numbers:
+[`results/experiment_y_jitter_fix.json`](results/experiment_y_jitter_fix.json).
+
+![Token accuracy by distance, before and after the jittered run](docs/distance_profile_y.svg)
+
+The chart plots per-geometry unseen token accuracy before and after. The anchors that worked at step
+0 are the points that fall; the band geometries that never reached record level sit near the axis in
+both series.
 
 ## Known limitations
 

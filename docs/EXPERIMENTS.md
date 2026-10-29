@@ -191,12 +191,74 @@ inference from two points and one run.
 small band around its target, so the model cannot key on one exact offset — a change to the data
 rather than more steps. It is a new experiment and is listed as the next step, not as a result.
 
+## Y — (generated draft)
+
+### Experiment Y — jittering the distance, and what it did not do
+
+**What was asked.** Experiment X ended with two probes degraded, both sitting exactly +8 tokens past a
+distance it had trained. The natural reading was that the model snaps to whatever offset it sees
+often, and the natural fix was to stop it snapping: train on jittered filler lengths so each target
+becomes a band rather than a point. The test was made falsifiable in advance. If jitter smooths the
+representation, distances the model never trains should lift as well. Recovery only at the band edges
+would mean the sharp points moved rather than spread.
+
+**What was done.** One variable changed against X. Same arm R, same 3e-4, same 200 steps, same batch
+of five rows, same five passes per geometry, fresh optimizer, starting from X's step-200 weights so
+the damage was present at step zero. The change: each needle slot draws its geometry per step from a
+band of `target ± 8` in steps of 4. Three anchors become fifteen trained geometries — 24 through 40
+around 32, 56 through 72 around 64, 101 through 117 around 109 — and eleven further distances
+(44, 48, 52, 76, 80, 84, 88, 92, 96, 121, 128) are never trained and serve as the interpolation test.
+The jitter is measured, not assumed: all fifteen geometries received exactly 40 presentations.
+
+**What actually happened.** The interpolation test failed. No never-trained distance produced a single
+exact record, and their mean token accuracy fell from 0.067 to 0.023 — the loss concentrated almost
+entirely in one distance (84, 0.702 → 0.166) while the rest sat at floor throughout. Nothing
+interpolated.
+
+The anchors got worse too. On the same 40 disjoint unseen rows per distance, the three distances this
+experiment was supposed to repair ended at 0.425 / 0.229 / 0.133 record-exact, down from
+0.828 / 0.904 / 0.908 at step 0 and well below X's 0.813 / 0.929 / 0.967 on the same rows. Token
+accuracy fell with them, 0.972 / 0.986 / 0.989 → 0.883 / 0.790 / 0.748, so the loss is not an artefact
+of the stricter metric.
+
+Eight of the fifteen trained geometries (24, 28, 36, 56, 60, 68, 105, 113) finished at exactly 0.000
+*training* record-exact despite 40 presentations each. That is not zero learning — their training token
+accuracy runs 0.09 to 0.56 — but none of them ever completed a single full training record.
+
+**The two band edges, read carefully.** The machine verdict recorded edge 40 as recovered. It was
+never damaged: 0.922 unseen at step 0, 0.981 at step 200, and the apparent repair comes from
+comparing a record-exact column against X's token-accuracy probe. Edge 72 is the one genuine gain in
+the run: unseen token accuracy 0.006 → 0.785, record-exact 0.000 → 0.135. That is X's other +8 offset,
+the one X had collapsed to zero, and jitter did teach retrieval there.
+
+So the fix bought the two band edges while costing the three anchors. That is the signature of
+capacity spent on specific offsets, not of a representation smoothed across a band.
+
+**What it means.** Jitter did not smooth the representation; it redistributed the sharpness. Within a
+single 200-step run, exposure to a band of neighbouring distances bought no generalisation across that
+band. This is a stronger result than one fix failing: it says X's distance-sharp behaviour is not a
+training-mix artefact that another variation of the data mix can regularise away. The next mechanism
+worth testing is a different one — distance-relative position features, rather than more variation in
+what the data looks like.
+
+**Limitations, including one that is ours.** One seed, one arm, one band width, one jitter
+granularity. And a real confound: X gave each distance 40 distinct rows, while Y spread 15 geometries
+over 8 rows each, so each geometry's 40 presentations come from 8 rows. Part of the unseen degradation
+is plausibly reduced per-geometry row diversity rather than jitter as such, which weakens any claim
+that jitter specifically caused those losses. Gap probes use 20 rows apiece, so differences below
+about 0.05 record-exact are not resolvable.
+
+The full curated record, including per-geometry and per-gap numbers, is in
+[`results/experiment_y_jitter_fix.json`](../results/experiment_y_jitter_fix.json), and the profile
+chart is [`distance_profile_y.svg`](distance_profile_y.svg).
+
+
 ## Open questions
 
 1. ~~Does rehearsing prior distances inside the training mix prevent the interference, or only slow
    it?~~ **Partly answered by X:** a balanced mix learns several distances and keeps the earlier one,
    but it costs accuracy on the distance being trained and leaves untrained neighbours degraded.
-   Whether a *jittered* mix generalises across a continuous band is the next experiment.
+   **Answered by Y: no.** Jittering filler by +-8 around each target did not generalise across the band; it moved capability to the band edges at the cost of the anchors.
 2. Is the 114–120 boundary a property of the architecture or of this task's encoding?
 3. Does the learning-rate sensitivity persist at larger widths, or is it a small-model artifact?
 4. Would per-distance heads or a distance-conditioned curriculum avoid overwriting entirely?
