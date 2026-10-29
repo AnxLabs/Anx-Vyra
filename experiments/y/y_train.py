@@ -67,10 +67,33 @@ RULES = os.environ.get("Y_RULES", "record")
 REF = json.loads(os.environ.get("Y_REF", "{}"))
 LR = 3e-4          # the kept configuration from Experiment V
 CLIP = 1.0; BATCH = 4; SEED = 0   # BATCH is reset to 2 + number of trained distances below
-STEPS = int(os.environ.get("Y_STEPS", "200"))   # override only for smoke tests
-EVAL_EVERY = int(os.environ.get("Y_EVAL_EVERY", "25"))
+# STEPS is resolved from the corpus it is about to train (see _resolve_steps below), never from a
+# blind default. Y hardcoded 200 here; against a 600-step Arm A corpus that would silently train the
+# first 200 steps and still print "5 passes", which is exactly the quiet-rounding defect this
+# experiment exists to avoid. Y_STEPS stays available as an explicit override and is cross-checked.
+STEPS = None
+_EVAL_EVERY_RAW = os.environ.get("Y_EVAL_EVERY", "").strip()
 CKPT_EVERY = int(os.environ.get("Y_CKPT_EVERY", "50"))
 DEADLINE = float(os.environ.get("T2_MAX_SEC", 520))
+
+# ---- evaluation cadence and the run budget ----
+# EVAL_EVERY defaults to a pinned explicit number, not a small cadence that quietly explodes the
+# eval count. It must divide STEPS, otherwise the last block lands short of the final step and the
+# run's closing measurement is not the one the plan promised.
+EVAL_EVERY = int(_EVAL_EVERY_RAW) if _EVAL_EVERY_RAW else 200
+# Blocks that run no matter what: baseline, the metric gate, and the final measurement. The
+# per-step deadline guard cannot skip these, so a budget model that ignores them understates the
+# real cost and stays silent in exactly the range where the cap actually blows.
+NON_SKIPPABLE_BLOCKS = 3
+# What to do when the adaptive guard cannot keep the run inside the cap by skipping evals.
+#   "skip" (default): skip in-loop eval blocks, keep training.
+#   "halt":           stop cleanly and report, rather than finish a run whose evals were gutted.
+EVAL_BUDGET_MODE = os.environ.get("Y_EVAL_BUDGET_MODE", "skip").strip().lower()
+if EVAL_BUDGET_MODE not in ("skip", "halt"):
+    raise SystemExit(f"Y_EVAL_BUDGET_MODE={EVAL_BUDGET_MODE!r} must be 'skip' or 'halt'")
+# Fraction of DEADLINE the guard is allowed to plan for. The remainder absorbs the variance of a
+# block measured on a busy shared GPU.
+BUDGET_FRACTION = float(os.environ.get("Y_BUDGET_FRACTION", "0.94"))
 WANT = os.environ.get("T2_DEVICE", "cuda")
 if WANT == "cuda" and not torch.cuda.is_available():
     raise SystemExit("CUDA requested but unavailable in the training process - refusing to "
@@ -194,6 +217,105 @@ print(f"Y_GAPS never trained {GAPS}", flush=True)
 MIX = {"gen": SY["rows_gen"], "gen_mask": SY["mask_gen"],
        "r32": SY["rows32"], "mask32": SY["mask32"],
        "plan": SY["plan"], "targets": TARGETS, "geometries": GEOM}
+
+
+def _resolve_steps(sy):
+    """Take STEPS from the corpus' own declared build record, and verify the plan agrees.
+
+    A corpus states how many steps its plan was laid out for. Training fewer than that truncates
+    the plan mid-epoch, so some (geometry, row) pairs receive fewer passes than the corpus claims.
+    Training more runs off the end of the plan. Both are silent in the old code, so neither is
+    allowed: the declared value wins, a plan shorter than it is fatal, and an explicit Y_STEPS that
+    disagrees is fatal too.
+    """
+    declared = None
+    build = sy.get("build") or {}
+    if isinstance(build.get("parameters"), dict):
+        declared = build["parameters"].get("steps")
+    if declared is None and isinstance(sy.get("meta"), dict):
+        declared = sy["meta"].get("steps")
+    plan_len = len(sy["plan"]) if sy.get("plan") is not None else None
+    if plan_len is None:
+        raise SystemExit("corpus has no plan; cannot determine STEPS")
+    if declared is None:
+        raise SystemExit(
+            "corpus does not declare its step count (no build.parameters.steps and no meta.steps). "
+            f"Its plan holds {plan_len} steps. Refusing to guess a training length.")
+    if int(declared) != int(plan_len):
+        raise SystemExit(
+            f"corpus is inconsistent: build record declares steps={declared} but the plan holds "
+            f"{plan_len} entries")
+    override = os.environ.get("Y_STEPS", "").strip()
+    if override:
+        if int(override) != int(declared):
+            raise SystemExit(
+                f"Y_STEPS={override} disagrees with the corpus, which declares steps={declared}. "
+                "Training a truncated or overrun plan would change the per-row passes the corpus "
+                "was built to deliver. Refusing rather than rounding.")
+        return int(override)
+    return int(declared)
+
+
+STEPS = _resolve_steps(SY)
+
+
+def _epoch_steps(sy):
+    """Steps it takes to present every (geometry, row) pair once, taken from the corpus.
+
+    Everything about RULE 5 depends on this. Y assumed 35 (5 jitter values x 7 rows) and hardcoded
+    the consequence as "step >= 175". Deriving it means a rule phrased in passes stays phrased in
+    passes for any arm.
+    """
+    build = sy.get("build") or {}
+    if isinstance(build.get("derived"), dict) and build["derived"].get("epoch_steps"):
+        n = int(build["derived"]["epoch_steps"])
+    else:
+        meta = sy.get("meta") or {}
+        jit = meta.get("jitter") or sy.get("jitter") or []
+        rows = meta.get("rows_per_geometry") or 0
+        if not jit or not rows:
+            raise SystemExit("corpus does not expose len(jitter) and rows_per_geometry; "
+                             "cannot derive EPOCH_STEPS for RULE 5")
+        n = len(jit) * int(rows)
+    if n <= 0:
+        raise SystemExit(f"derived EPOCH_STEPS={n} is not positive")
+    return n
+
+
+EPOCH_STEPS = _epoch_steps(SY)
+RULE5_PASSES = int(os.environ.get("Y_RULE5_PASSES", "5"))
+if RULE5_PASSES <= 0:
+    raise SystemExit(f"Y_RULE5_PASSES={RULE5_PASSES} must be positive")
+# RULE 5 is only meaningful if the run actually reaches its threshold. If it cannot, say so loudly
+# at startup instead of leaving a dormant rule that silently never fires.
+PASSES_PLAN = STEPS // EPOCH_STEPS if EPOCH_STEPS else 0
+if STEPS % EPOCH_STEPS != 0:
+    raise SystemExit(
+        f"corpus STEPS={STEPS} is not a whole number of epochs (EPOCH_STEPS={EPOCH_STEPS}); the "
+        f"per-row passes it claims cannot be uniform")
+_RULE5_REACHABLE = PASSES_PLAN >= RULE5_PASSES
+
+# Live state for the adaptive eval budget guard and the exposure record.
+PLAN_STATE = {"in_loop_blocks": None, "evals_run": [], "eval_s": 0.0, "skipped": [],
+              "last_projection": None, "budget_halt": None}
+print(f"EXPOSURE passes_planned={PASSES_PLAN} epoch_steps={EPOCH_STEPS} "
+      f"rule5_threshold={RULE5_PASSES} rule5_reachable={_RULE5_REACHABLE} "
+      f"rule5_enforced={RULE5}", flush=True)
+if not _RULE5_REACHABLE:
+    print(f"RULE5_DORMANT this run reaches {PASSES_PLAN} passes, below the {RULE5_PASSES}-pass "
+          f"threshold, so RULE 5 CANNOT FIRE even if the arm never learns. Stated here so the "
+          f"absence of a RULE 5 halt is not read as a pass.", flush=True)
+if EVAL_EVERY <= 0:
+    raise SystemExit(f"Y_EVAL_EVERY={EVAL_EVERY} must be positive")
+if STEPS % EVAL_EVERY != 0:
+    raise SystemExit(
+        f"EVAL_EVERY={EVAL_EVERY} does not divide STEPS={STEPS}: the final in-loop block would land "
+        f"at step {STEPS - STEPS % EVAL_EVERY}, not {STEPS}. Pick a cadence that divides {STEPS}.")
+_INLOOP_BLOCKS = STEPS // EVAL_EVERY
+PLAN_STATE["in_loop_blocks"] = _INLOOP_BLOCKS
+print(f"EVAL_PLAN every={EVAL_EVERY} in_loop_blocks={_INLOOP_BLOCKS} "
+      f"non_skippable={NON_SKIPPABLE_BLOCKS} total={_INLOOP_BLOCKS + NON_SKIPPABLE_BLOCKS} "
+      f"budget_mode={EVAL_BUDGET_MODE} deadline={DEADLINE:.0f}s", flush=True)
 
 # no X payload may reuse any earlier experiment's payload
 _xp = set()
@@ -616,54 +738,100 @@ def arm_loop(arm, ds, lr):
             raise Halt(f"nonfinite params at {arm} step {step}")
         losses.append(v)
         if (step + 1) % EVAL_EVERY == 0:
-            ev = evaluate_light()
-            row = _row_of(ev, step + 1, v, gn)
-            row.update({
-                   "step_s": round((time.monotonic() - t_start) / (step + 1), 4),
-                   "eval_s": sum(ev[k]["eval_s"] for k in ev
-                                 if isinstance(ev[k], dict) and "eval_s" in ev[k]),
-                   "elapsed_s": round(time.monotonic() - T0, 1), **gpu_mem()})
-            R["arms"][arm]["table"].append(row)
-            if (step + 1) % CKPT_EVERY == 0:
-                p = os.path.join(OUTD, f"y_{arm}_step{step+1}.pt")
-                torch.save(full_state(arm, step + 1), p)
-                R["arms"][arm].setdefault("checkpoints", {})[str(step + 1)] = {"path": p, "sha256": sha(p)}
-            save()
-            print(f"[{arm}] CHECK {step+1} anchors {row['arm_train']}/{row['unseen']} "
-                  f"F32 {row['F32_probe']} valid {row['valid_tok']:.4f} "
-                  + " ".join(f"d{d}:{row.get(f'd{d}_train')}/{row.get(f'd{d}_unseen')}"
-                             for d in TARGETS)
-                  + f" gapmean:{row['gap_mean']} "
-                  f"{row['step_s']*1000:.1f}ms/step {row['elapsed_s']}s "
-                  f"mem {row.get('peak_alloc_gib')}GiB", flush=True)
-            r1 = row["valid_tok"] is not None and row["valid_tok"] < R["arms"][arm]["floors"]["valid"]
-            f32floor = R["arms"][arm]["floors"]["f32"]
-            r2 = (f32floor is not None and row["F32_probe"] is not None and row["F32_probe"] < f32floor)
-            # a distance that reached the learning bar earlier and has since collapsed
-            prev = [r_ for r_ in R["arms"][arm]["table"][:-1]]
-            collapsed = [g for g in GEOM
-                         if any((pr.get(f"g{g}_train") or 0) >= 0.5 for pr in prev)
-                         and (row.get(f"g{g}_train") or 0) < 0.2]
-            r3 = bool(collapsed)
-            r5 = (step + 1) >= 175 and row["arm_train"] == 0.0
-            R["arms"][arm].setdefault("rules", []).append(
-                {"step": step + 1, "r1_valid": bool(r1), "r2_f32": bool(r2),
-                "r3_collapsed": collapsed, "r5_nolearn": bool(r5)})
-            save()
-            if r1 and RULES == "halt":
-                raise Halt(f"RULE 1 {arm} at {step+1}: valid {row['valid_tok']:.4f}")
-            if r2 and RULES == "halt":
-                raise Halt(f"RULE 2 {arm} at {step+1}: F32 probe {row['F32_probe']:.4f}")
-            if r3 and RULES == "halt":
-                raise Halt(f"RULE 3 {arm} at {step+1}: distance(s) collapsed {collapsed}")
-            if RULES != "halt" and (r1 or r2 or r3):
-                R["arms"][arm].setdefault("floor_breaches", []).append(
+            # --- adaptive budget guard -------------------------------------------------
+            # Decide whether to spend an eval block here. The projection has to be honest about
+            # every cost still ahead: the rest of training, the rest of the in-loop blocks, this
+            # block, and the final measurement which is never skippable. Deriving "blocks left"
+            # from the step position (not from how many evals have run) is what stops the guard
+            # stalling after its own first skip.
+            _block_no = (step + 1) // EVAL_EVERY              # this block, 1-based
+            _after = _INLOOP_BLOCKS - _block_no               # in-loop blocks still to come
+            _per = (PLAN_STATE["eval_s"] / len(PLAN_STATE["evals_run"])
+                    if PLAN_STATE["evals_run"] else None)
+            _limit = DEADLINE * BUDGET_FRACTION
+            _proj = None
+            if _per is not None:
+                _step_s = (time.monotonic() - t_start) / (step + 1)
+                _proj = (time.monotonic() - T0
+                         + _per                                  # this block
+                         + (STEPS - (step + 1)) * _step_s         # remaining training
+                         + _after * _per                          # remaining in-loop blocks
+                         + _per)                                  # final measurement
+            PLAN_STATE["last_projection"] = _proj
+            _over = _proj is not None and _proj > _limit
+            if _over and EVAL_BUDGET_MODE == "halt":
+                PLAN_STATE["budget_halt"] = {"step": step + 1, "projected_s": round(_proj, 1),
+                                             "limit_s": round(_limit, 1)}
+                raise Halt(f"EVAL BUDGET at step {step+1}: projected {_proj:.0f}s > limit "
+                           f"{_limit:.0f}s; halting rather than dropping measurements "
+                           f"(Y_EVAL_BUDGET_MODE=halt)")
+            if _over:
+                PLAN_STATE["skipped"].append(step + 1)
+                print(f"[{arm}] EVAL_SKIP step {step+1}: projected {_proj:.0f}s > {_limit:.0f}s "
+                      f"({_after} block(s) left after this); skipping this block", flush=True)
+                save()
+            else:
+                ev = evaluate_light()
+                _ev_s = sum(ev[k]["eval_s"] for k in ev
+                            if isinstance(ev[k], dict) and "eval_s" in ev[k])
+                PLAN_STATE["evals_run"].append(step + 1)
+                PLAN_STATE["eval_s"] += _ev_s
+                row = _row_of(ev, step + 1, v, gn)
+                row.update({
+                       "step_s": round((time.monotonic() - t_start) / (step + 1), 4),
+                       "eval_s": _ev_s,
+                       "passes_done": (step + 1) // EPOCH_STEPS,
+                       "elapsed_s": round(time.monotonic() - T0, 1), **gpu_mem()})
+                R["arms"][arm]["table"].append(row)
+                if (step + 1) % CKPT_EVERY == 0:
+                    p = os.path.join(OUTD, f"y_{arm}_step{step+1}.pt")
+                    torch.save(full_state(arm, step + 1), p)
+                    R["arms"][arm].setdefault("checkpoints", {})[str(step + 1)] = {"path": p, "sha256": sha(p)}
+                save()
+                print(f"[{arm}] CHECK {step+1} anchors {row['arm_train']}/{row['unseen']} "
+                      f"F32 {row['F32_probe']} valid {row['valid_tok']:.4f} "
+                      + " ".join(f"d{d}:{row.get(f'd{d}_train')}/{row.get(f'd{d}_unseen')}"
+                                 for d in TARGETS)
+                      + f" gapmean:{row['gap_mean']} "
+                      f"{row['step_s']*1000:.1f}ms/step {row['elapsed_s']}s "
+                      f"mem {row.get('peak_alloc_gib')}GiB", flush=True)
+                r1 = row["valid_tok"] is not None and row["valid_tok"] < R["arms"][arm]["floors"]["valid"]
+                f32floor = R["arms"][arm]["floors"]["f32"]
+                r2 = (f32floor is not None and row["F32_probe"] is not None and row["F32_probe"] < f32floor)
+                # a distance that reached the learning bar earlier and has since collapsed
+                prev = [r_ for r_ in R["arms"][arm]["table"][:-1]]
+                collapsed = [g for g in GEOM
+                             if any((pr.get(f"g{g}_train") or 0) >= 0.5 for pr in prev)
+                             and (row.get(f"g{g}_train") or 0) < 0.2]
+                r3 = bool(collapsed)
+                # RULE 5 is DERIVED from the corpus, not from a fixed step. Y encoded "5 passes" as
+                # the literal step 175, which is only 5 passes when an epoch is 35 steps. Against
+                # Arm A (epoch 120) step 175 is 1.46 passes and against Arm B (epoch 8) it is 21.9,
+                # so the rule would fire at wildly different exposures while still printing
+                # "at 5 passes". Compare the passes actually completed against the threshold.
+                _passes_done = row["passes_done"]
+                r5 = _passes_done >= RULE5_PASSES and row["arm_train"] == 0.0
+                row["rule5_passes_done"] = _passes_done
+                R["arms"][arm].setdefault("rules", []).append(
                     {"step": step + 1, "r1_valid": bool(r1), "r2_f32": bool(r2),
-                     "r3_collapsed": collapsed})
-            if r5 and RULE5:
-                raise Halt(f"RULE 5 {arm} at {step+1}: own rows still 0.0 at 5 passes")
-            if r5 and not RULE5:
-                R["arms"][arm]["rule5_noted_at"] = step + 1
+                    "r3_collapsed": collapsed, "r5_nolearn": bool(r5),
+                    "passes_done": _passes_done})
+                save()
+                if r1 and RULES == "halt":
+                    raise Halt(f"RULE 1 {arm} at {step+1}: valid {row['valid_tok']:.4f}")
+                if r2 and RULES == "halt":
+                    raise Halt(f"RULE 2 {arm} at {step+1}: F32 probe {row['F32_probe']:.4f}")
+                if r3 and RULES == "halt":
+                    raise Halt(f"RULE 3 {arm} at {step+1}: distance(s) collapsed {collapsed}")
+                if RULES != "halt" and (r1 or r2 or r3):
+                    R["arms"][arm].setdefault("floor_breaches", []).append(
+                        {"step": step + 1, "r1_valid": bool(r1), "r2_f32": bool(r2),
+                         "r3_collapsed": collapsed})
+                if r5 and RULE5:
+                    raise Halt(f"RULE 5 {arm} at {step+1}: own rows still 0.0 at "
+                               f"{_passes_done} passes (threshold {RULE5_PASSES})")
+                if r5 and not RULE5:
+                    R["arms"][arm]["rule5_noted_at"] = step + 1
     train_s = time.monotonic() - t_start
     R["arms"][arm]["train_seconds"] = round(train_s, 1)
     R["arms"][arm]["ms_per_step"] = round(1000 * train_s / STEPS, 2)
@@ -672,6 +840,21 @@ def arm_loop(arm, ds, lr):
     R["arms"][arm]["peak_gpu"] = gpu_mem()
     R["arms"][arm]["peak_host_rss"] = vyra_shim.working_set()
     R["arms"][arm]["params"] = sum(p.numel() for p in model.parameters())
+    # The exposure actually delivered, next to the exposure the corpus promised. A run whose evals
+    # were trimmed must still be describable, so this travels with the results either way.
+    R["arms"][arm]["exposure"] = {
+        "steps_run": STEPS, "epoch_steps": EPOCH_STEPS, "passes_planned": PASSES_PLAN,
+        "rows_per_geometry": (SY.get("meta") or {}).get("rows_per_geometry"),
+        "geometries": len(GEOM), "eval_every": EVAL_EVERY,
+        "eval_blocks_planned": _INLOOP_BLOCKS + NON_SKIPPABLE_BLOCKS,
+        "eval_blocks_run": len(PLAN_STATE["evals_run"]),
+        "eval_blocks_skipped": PLAN_STATE["skipped"],
+        "eval_seconds": round(PLAN_STATE["eval_s"], 1),
+        "budget_mode": EVAL_BUDGET_MODE, "deadline_s": DEADLINE,
+        "budget_halt": PLAN_STATE["budget_halt"],
+        "rule5_threshold_passes": RULE5_PASSES, "rule5_reachable": _RULE5_REACHABLE,
+        "rule5_enforced": bool(RULE5),
+    }
     save()
 
 
