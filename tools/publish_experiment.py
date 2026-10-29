@@ -370,7 +370,202 @@ def curate_x(raw: dict, profile: dict) -> dict:
     }
 
 
-CURATORS = {"x": curate_x}
+def curate_y(raw: dict, profile: dict) -> dict:
+    """Experiment Y: jittered-distance targeted fix. Hand-curated allowlist.
+
+    Nothing is copied wholesale: the raw record carries absolute /kaggle paths, dataset slugs and
+    other machine-specific values that must not be published. Every field below is named explicitly.
+    """
+    arm = raw["arms"]["jitter_3e4"]
+    base = arm["baseline"]
+    final = arm["final"]
+    gate = raw["metric_gate"]["jitter_3e4"]
+    GEOM = [24, 28, 32, 36, 40, 56, 60, 64, 68, 72, 101, 105, 109, 113, 117]
+    GAPS = [44, 48, 52, 76, 80, 84, 88, 92, 96, 121, 128]
+    BANDS = {"32": [24, 28, 32, 36, 40], "64": [56, 60, 64, 68, 72], "109": [101, 105, 109, 113, 117]}
+
+    ckpts = [{"step": r["step"],
+              "arm_train": r["arm_train"], "arm_unseen": r["unseen"],
+              "d32_train": r["d32_train"], "d32_unseen": r["d32_unseen"],
+              "d64_train": r["d64_train"], "d64_unseen": r["d64_unseen"],
+              "d109_train": r["d109_train"], "d109_unseen": r["d109_unseen"],
+              "needle32_record_exact": r["needle32"],
+              "F32_probe_record_exact": r["F32_probe"],
+              "valid_token_acc": r["valid_tok"],
+              "gap_mean": r.get("gap_mean"),
+              "train_loss": r.get("loss")} for r in arm["table"]]
+
+    def acc(src, key):
+        return (src.get(key) or {}).get("record_exact")
+
+    per_geom = {str(g): {"train_before": acc(base, f"g{g}_train"),
+                         "train_after": acc(final, f"g{g}_train"),
+                         "unseen_before": acc(base, f"g{g}_unseen"),
+                         "unseen_after": acc(final, f"g{g}_unseen"),
+                         "trained": True} for g in GEOM}
+    per_gap = {str(g): {"before": acc(base, f"gap{g}"),
+                        "after": acc(final, f"gap{g}"),
+                        "trained": False} for g in GAPS}
+
+    never_learned = [g for g in GEOM if acc(final, f"g{g}_train") == 0.0]
+
+    return {
+        "experiment": "Y",
+        "kind": "jittered-distance targeted fix",
+        "question": (
+            "Experiment X left two probes degraded at exactly +8 tokens past a trained distance "
+            "(40 = 32+8, 72 = 64+8). Does training on jittered filler length around each target "
+            "distance repair that, or does it only move the model's sharp points?"
+        ),
+        "design": (
+            "One variable changed versus Experiment X. Held fixed: arm R as shipped, learning rate "
+            "3e-4 applied in the library as well as the config, 200 steps, batch of 5 rows = 2 "
+            "general replay rows + 3 needle slots, 5 passes per (geometry, row), fresh optimizer. "
+            "Changed: each needle slot draws its geometry per step from a band of target +-8 in "
+            "steps of 4, giving 15 trained geometries from 3 anchors. Eleven further distances were "
+            "never trained and act as the interpolation test: if jitter smoothed the representation, "
+            "those should lift too."
+        ),
+        "setup": {
+            "architecture": "arm R as shipped: 128-token window on layers 0,2,4,6, full causal elsewhere",
+            "params_total": arm["params"],
+            "params_active": 8169536,
+            "start": "Experiment X step-200 checkpoint",
+            "init_tensor_sha256": raw["cksum"]["tensor_sha256"],
+            "start_provenance": (
+                "cksum.source_experiment = X, cksum.source_step = 200. All 90 start tensors were "
+                "separately verified bit-identical to Experiment X's step-200 checkpoint "
+                "(max abs diff 0.0)."
+            ),
+            "learning_rate": 0.0003,
+            "steps": 200,
+            "batch_rows": 5,
+            "batch_composition": "2 general replay rows + 3 needle slots, one per anchor band",
+            "passes_per_geometry": 5,
+            "rows_per_geometry": 8,
+            "unseen_rows_per_geometry": 40,
+            "rows_per_gap_probe": 20,
+            "fresh_optimizer": True,
+            "optimizer": "SliceAdam",
+            "accelerator": "NVIDIA Tesla T4",
+            "geometries_trained": GEOM,
+            "gap_distances_never_trained": GAPS,
+        },
+        "bands": BANDS,
+        "jitter_audit": {
+            "note": ("Presentations per geometry, measured by the trainer, not assumed. Every one of "
+                     "the 15 geometries received exactly 40 presentations, so the jitter genuinely "
+                     "ran and the result is not a coverage bug."),
+            "presentations_per_geometry": {str(g): 40 for g in GEOM},
+            "distinct_geometries_used_per_band": {"32": 5, "64": 5, "109": 5},
+            "expected_geometries_per_band": 5,
+        },
+        "lr_verification": {
+            "requested": 0.0003,
+            "library_LR_at_build": 0.0003,
+            "first_update_max_abs": arm["first_update_max_abs"],
+            "note": ("SliceAdam reads a module-level learning rate at update time rather than a "
+                     "constructor argument, so the first update magnitude is the proof that 3e-4 was "
+                     "actually applied. 3.000498e-04 matches the 3e-4 arms of Experiments U, V and X."),
+            "optimizer_applied_ok": True,
+        },
+        "metric_gate": {
+            "mode": "metrics",
+            "tolerance": gate["tolerance"],
+            "gpu": gate["gpu"],
+            "cpu_reference": gate["cpu_reference"],
+            "abs_delta": gate["abs_delta"],
+            "pass": gate["pass"],
+            "note": ("Y starts from X's step-200 weights, so its step-0 gate values are X's FINAL "
+                     "values and not X's own gate reference. The reference here was measured on CPU "
+                     "from this same checkpoint specifically for this run."),
+        },
+        "start_baseline": {
+            "note": ("Record-exact on the three anchors at step 0, confirming X's end state. "
+                     "The two probes X degraded are 0.000 here because X's own probe numbers are "
+                     "token accuracy while this table is record-exact."),
+            "d32_unseen": acc(base, "g32_unseen"),
+            "d64_unseen": acc(base, "g64_unseen"),
+            "d109_unseen": acc(base, "g109_unseen"),
+            "needle32_record_exact": acc(base, "needle32_train"),
+            "F32_probe_record_exact": acc(base, "train_F32"),
+            "orig_valid_token_acc": base["orig_valid"]["token_acc"],
+            "gap_mean": base.get("gap_mean"),
+        },
+        "checkpoints": ckpts,
+        "per_geometry_unseen": per_geom,
+        "per_gap_distance": per_gap,
+        "final": {
+            "needle32_record_exact": acc(final, "needle32_train"),
+            "orig_valid_token_acc": final["orig_valid"]["token_acc"],
+            "F32_probe_record_exact": acc(final, "train_F32"),
+            "gap_mean": final.get("gap_mean"),
+        },
+        "retention": {
+            "needle32_record_exact": {"before": acc(base, "needle32_train"),
+                                      "after": acc(final, "needle32_train")},
+            "orig_valid_token_acc": {"before": base["orig_valid"]["token_acc"],
+                                     "after": final["orig_valid"]["token_acc"]},
+            "F32_probe_record_exact": {"before": acc(base, "train_F32"),
+                                       "after": acc(final, "train_F32"),
+                                       "floor": arm["floors"]["f32"]},
+        },
+        "verdict": {
+            "machine_verdict": raw["verdict"],
+            "headline": ("NEGATIVE. Jitter did not smooth the distance representation; it "
+                         "redistributed the sharp points."),
+            "band_edges": {
+                "40": ("0.922 unseen at step 0 -> 0.981 at step 200 record-exact (token acc 0.990 -> "
+                       "0.998). It was already working before this run, so its 'recovered' flag is "
+                       "not a repair: the machine compared a record-exact column against X's "
+                       "token-accuracy probe. It gained a little, it was not fixed."),
+                "72": ("The one genuine gain. Unseen token accuracy 0.006 -> 0.785, record-exact "
+                       "0.000 -> 0.135. This is X's other +8 offset, which X had collapsed to zero, "
+                       "so jitter did teach retrieval at 72 where none existed."),
+            },
+            "anchors_degraded_on_unseen": {
+                "32": {"before": acc(base, "g32_unseen"), "after": acc(final, "g32_unseen")},
+                "64": {"before": acc(base, "g64_unseen"), "after": acc(final, "g64_unseen")},
+                "109": {"before": acc(base, "g109_unseen"), "after": acc(final, "g109_unseen")},
+            },
+            "never_learned_geometries": {
+                "distances": never_learned,
+                "note": ("These trained geometries ended at exactly 0.000 TRAIN record-exact despite "
+                         "40 presentations each. They did not learn nothing: their training-row token "
+                         "accuracy is 0.09 to 0.56, so they fitted the filler format partially but "
+                         "never completed a full record. State it as failure to reach record level, "
+                         "not as zero learning."),
+                "train_token_acc": {str(g): ((final.get(f"g{g}_train") or {}).get("token_acc"))
+                                    for g in never_learned},
+            },
+            "gap_distances": (
+                "All eleven never-trained distances are 0.000 record-exact at step 200; the record-exact "
+                "gap mean fell from 0.007955 to 0.000. Token accuracy agrees: the mean fell from 0.0666 "
+                "to 0.0228, and the loss is concentrated in one distance, 84, which fell 0.7016 to "
+                "0.1656 while the other ten sat under 0.01 before and after. No never-trained distance "
+                "produced a single exact record, so no interpolation happened."),
+        },
+        "limitations": [
+            ("Single seed, single arm, one band width and one jitter granularity. This does not "
+             "establish that no jitter scheme can work."),
+            ("Confound: per-geometry row diversity fell relative to X. X gave each distance 40 "
+             "distinct rows; Y gives each of 15 geometries only 8 distinct rows, so each geometry's "
+             "40 presentations come from 8 rows. Part of the unseen degradation is plausibly this "
+             "reduced diversity rather than jitter as such."),
+            ("The gap probes use 20 rows each, so differences below roughly 0.05 record-exact are "
+             "not resolvable."),
+        ],
+        "comparison_to_x": (
+            "Experiment X, one arm over three distances with 40 distinct rows each, ended with unseen "
+            "record-exact 0.813 / 0.929 / 0.967 at 32 / 64 / 109. Y starts from exactly those weights "
+            "and, after 200 steps of jittered exposure at the same rate, ends at 0.425 / 0.229 / 0.133 "
+            "on the same unseen rows. Jitter within +-8 of each target did not repair X's sharpness; "
+            "it degraded the anchors and left every other band geometry it trained unlearned."
+        ),
+    }
+
+
+CURATORS = {"x": curate_x, "y": curate_y}
 
 
 def curate(raw: dict, profile: dict, experiment: str) -> dict:
@@ -569,7 +764,10 @@ def build_readme_block(experiment: str, slug: str, curated: dict, n: int) -> str
         rows.append("|---|---|---|")
         for d in sorted(per, key=lambda s: int(s)):
             rows.append(f"| {d} | {per[d].get('train')} | {per[d].get('unseen')} |")
-    body = [f"Experiment `{experiment}`. Curated record: [`results/{slug}.json`](results/{slug}.json).", ""]
+    # the curated record is written as results/experiment_<exp>_<slug>.json (see the writer below);
+    # the link must use that same name, or every generated README link 404s
+    rec = f"experiment_{experiment.lower()}_{slug}.json"
+    body = [f"Experiment `{experiment}`. Curated record: [`results/{rec}`](results/{rec}).", ""]
     if rows:
         body += rows + [""]
     verdict = curated.get("verdict")
@@ -690,7 +888,7 @@ def main(argv=None) -> int:
                           f"{', '.join(str(d) for d in trained)} &#183; " + footer)
             svg = render_profile_svg(
                 profile, footer=footer,
-                title=f"Experiment {exp}: record retrieval across distance, before and after "
+                title=f"Experiment {exp}: token accuracy across distance, before and after "
                       f"200 steps")
             out_svg = repo / "docs" / f"{chart_stem}.svg"
             existed = out_svg.exists()
