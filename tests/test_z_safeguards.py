@@ -175,3 +175,19 @@ def test_metric_gate_fails_on_a_metric_it_cannot_resolve():
     src = YTRAIN.read_text()
     assert "METRIC_GATE_UNRESOLVED" in src
     assert "_ALIASES" in src
+
+
+def test_gap_mean_is_carried_on_a_measurement_that_can_move():
+    """record_exact is ~token_acc**8 and pins at 0.000 below about 0.63 token accuracy.
+
+    Y's eleven gaps were all exactly 0.0 for that reason while their token accuracy ranged
+    0.09-0.56, so a +0.02 improvement test on the record-exact mean could only ever fail.
+    """
+    src = YTRAIN.read_text()
+    assert 'out["gap_mean_metric"] = "token_acc"' in src
+    assert "gap_mean_record_exact" in src, "the pre-registered figure must still be recorded"
+    block = src[src.index('_mean_set = [g for g in GAPS'):]
+    block = block[:block.index('out["gap_mean_extended"]')]
+    assert "token_acc" in block, "gap_mean must average token accuracy, not record_exact"
+    assert 'out["gap_mean_record_exact"]' in block, \
+        "record_exact must survive beside it, since that is the pre-registered figure"
