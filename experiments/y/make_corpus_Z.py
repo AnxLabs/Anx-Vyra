@@ -59,6 +59,12 @@ OUT = os.environ.get("Z_OUT", os.environ.get("T2_OUT", "./z_data"))
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(LAB, exist_ok=True)
 APPLIED = vyra_shim.patch_library(rv, LAB)
+# The shim records where the lab was set up. On the build machine that is an absolute path, and
+# baking it into a published corpus makes the corpus hash a function of WHERE it was built: Y's
+# published hash could never be reproduced by a reader for exactly this reason, and the path also
+# leaks a local directory layout into an artifact. Record the SHAPE of the redirection, not the
+# live path. The parameter is echoed as given so a build is still describable.
+APPLIED = [a if not a.startswith("LAB->") else "LAB->$VYRA_LAB" for a in APPLIED]
 
 BOS, EOS, BODY, SEQ = 256, 257, 510, 512
 MEMB, QRYB = b"MEM:", b"QUERY:"
@@ -81,14 +87,42 @@ def _int_list(raw):
     return vals
 
 
-STEPS = int(_env("STEPS", default="200"))
-N_TR = int(_env("N_TR", default="8"))        # rows per geometry
+# ---- the approved arm table ------------------------------------------------------------------
+# "A flipped default is still a default." A default that happens to build the withdrawn arm is a
+# trap, and flipping it just moves the trap. So a Z build must NAME its arm, and the resolved
+# numbers must match that arm's approved row exactly or the build refuses. This closes the whole
+# class of unset-variable defects at once: right arm with a stale N_TR, right jitter with the old
+# GAPS, and so on, all stop being silently buildable.
+ARM_TABLE = {
+    "A": {"steps": 600, "jitter": [-4, 0, 4], "n_tr": 40,
+          "gaps": [40, 44, 48, 52, 72, 76, 80, 84, 88, 92, 96, 121, 128],
+          "passes": 5, "geometries": 9},
+    "B": {"steps": 200, "jitter": [0], "n_tr": 8,
+          "gaps": [44, 48, 52, 76, 80, 84, 88, 92, 96, 121, 128],
+          "passes": 25, "geometries": 3},
+}
+ARM = _env("ARM", default="")
+if not ARM:
+    raise SystemExit(
+        "Z_ARM is required: name the arm this corpus is for (one of "
+        f"{sorted(ARM_TABLE)}). Building without naming the arm is how a stale default produces a "
+        "corpus that reports itself as an arm it is not.")
+if ARM not in ARM_TABLE:
+    raise SystemExit(f"Z_ARM={ARM!r} is not an approved arm; approved: {sorted(ARM_TABLE)}")
+_ARM_REQUESTED = ARM
+_SPEC = ARM_TABLE[ARM]
+
+STEPS = int(_env("STEPS", default=str(_SPEC["steps"])))
+N_TR = int(_env("N_TR", default=str(_SPEC["n_tr"])))   # rows per geometry
 N_UN = int(_env("N_UN", default="40"))       # unseen rows per geometry
 N_GAP = int(_env("N_GAP", default="20"))     # rows per interpolation probe distance
 
 TARGETS = _int_list(_env("TARGETS", "Y_TARGETS", "32,64,109"))
-JITTER = _int_list(_env("JITTER", "Y_JITTER", "-8,-4,0,4,8"))
-GAPS = _int_list(_env("GAPS", "Y_GAPS", "44,48,52,76,80,84,88,92,96,121,128"))
+# Default comes from the named arm, never a global constant. The withdrawn +/-8 band must not be
+# reachable by forgetting a variable: it builds 15 geometries and 3 passes while still calling
+# itself Arm A.
+JITTER = _int_list(_env("JITTER", "Y_JITTER", ",".join(str(j) for j in _SPEC["jitter"])))
+GAPS = _int_list(_env("GAPS", "Y_GAPS", ",".join(str(g) for g in _SPEC["gaps"])))
 # Band distances this arm is REQUIRED to cover, e.g. "40,72" for the X regression.
 # Empty by default: Z's Arm A trains 28..36/60..68/105..113 and Arm B trains only 32/64/109, so
 # neither covers 40 or 72, and demanding it would refuse to build the very arms it exists to build.
@@ -103,8 +137,16 @@ if not JITTER:
 
 BANDS = {t: [t + j for j in JITTER] for t in TARGETS}
 ALL_GEOM = sorted({d for b in BANDS.values() for d in b})
-assert len(ALL_GEOM) == len(TARGETS) * len(JITTER), "bands overlap; jitter too wide"
-assert not (set(GAPS) & set(ALL_GEOM)), "interpolation probes must not be trained distances"
+if len(ALL_GEOM) != len(TARGETS) * len(JITTER):
+    raise SystemExit(
+        f"BANDS_OVERLAP: {len(TARGETS)} targets x {len(JITTER)} jitter values should give "
+        f"{len(TARGETS)*len(JITTER)} distinct geometries but the bands overlap into {len(ALL_GEOM)}. "
+        f"Jitter {JITTER} is too wide for targets {TARGETS}.")
+if set(GAPS) & set(ALL_GEOM):
+    raise SystemExit(
+        f"GAP_BAND_COLLISION: {sorted(set(GAPS) & set(ALL_GEOM))} are both gap probes and trained "
+        f"geometries. A gap probe that collides with a trained distance reports a fake null, "
+        f"because the rows were seen during training. Gaps={sorted(GAPS)} geometries={ALL_GEOM}")
 
 # ---- derived exposure. Exact or refuse; never round. ----
 PRESENT_PER_TARGET = STEPS                      # one slot per target per step
@@ -129,6 +171,35 @@ if PASSES < 1:
     raise SystemExit(
         f"EXPOSURE_INEXACT: PASSES={PASSES}; STEPS={STEPS} is under one full epoch of "
         f"len(base)={EPOCH_STEPS}")
+
+# ---- the named arm must actually be the arm that got built -----------------------------------
+_diffs = []
+if STEPS != _SPEC["steps"]:
+    _diffs.append(f"steps {STEPS} != {_SPEC['steps']}")
+if JITTER != _SPEC["jitter"]:
+    _diffs.append(f"jitter {JITTER} != {_SPEC['jitter']}")
+if N_TR != _SPEC["n_tr"]:
+    _diffs.append(f"n_tr {N_TR} != {_SPEC['n_tr']}")
+if sorted(GAPS) != sorted(_SPEC["gaps"]):
+    _diffs.append(f"gaps {sorted(GAPS)} != {sorted(_SPEC['gaps'])}")
+if PASSES != _SPEC["passes"]:
+    _diffs.append(f"passes {PASSES} != {_SPEC['passes']}")
+if len(ALL_GEOM) != _SPEC["geometries"]:
+    _diffs.append(f"geometries {len(ALL_GEOM)} != {_SPEC['geometries']}")
+if _diffs:
+    # Z_BUILD_DEV lets a throwaway corpus exist for smoke tests. It is recorded as arm "DEV" in the
+    # payload so it can never be mistaken for an approved arm, and it is not a way to build A or B
+    # with the wrong numbers - those two names stay bound to the table above.
+    if _env("BUILD_DEV", default="0") == "1":
+        ARM = "DEV"
+        print(f"DEV_BUILD_NOT_APPROVED resolved numbers differ from Z_ARM={_ARM_REQUESTED}: "
+              f"{'; '.join(_diffs)}. Recorded as arm DEV.", flush=True)
+    else:
+        raise SystemExit(
+            f"Z_ARM={ARM} was named but the resolved build is not that arm: " + "; ".join(_diffs) +
+            ". A corpus that reports itself as an arm it is not is worse than a failed build.")
+print(f"ARM_TABLE_OK arm={ARM} steps={STEPS} jitter={JITTER} n_tr={N_TR} passes={PASSES} "
+      f"geometries={len(ALL_GEOM)} gaps={len(GAPS)}", flush=True)
 
 
 def sha(path):
@@ -409,11 +480,12 @@ payload = {
     # produced it instead of leaving an auditor to reconstruct them from a command line that may not
     # have been saved. Derived quantities are recorded next to the inputs they came from.
     "build": {
-        "arm": _env("ARM", default="unspecified"),
+        "arm": ARM,
         "parameters": {
             "targets": TARGETS, "jitter": JITTER, "n_tr": N_TR, "steps": STEPS,
             "n_unseen": N_UN, "n_gap": N_GAP, "gaps": GAPS,
-            "require_bands": REQUIRE_BANDS,
+            "require_bands": REQUIRE_BANDS, "gaps": GAPS,
+            "gap_count": len(GAPS),
             "seeds": {"gen": int(_env("GEN_SEED", "Y_GEN_SEED", "1101")),
                       "plan": int(_env("PLAN_SEED", "Y_PLAN_SEED", "9201"))},
         },

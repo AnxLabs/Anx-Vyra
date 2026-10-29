@@ -54,7 +54,23 @@ vyra_shim.install_rope(vs)
 vyra_shim.bind_dims(vs)
 vyra_shim.install_attention_mask(vs)
 
-EXPECT = json.loads(os.environ.get("T2_EXPECT", "{}"))
+# T2_EXPECT is the only thing that ties THIS process to the bytes it is about to train on. Empty,
+# it makes the preflight check at :153 vacuous - a run would report a clean hash gate having hashed
+# nothing. Fail closed instead: an unset expectation is a missing gate, not a passing one.
+_EXPECT_RAW = os.environ.get("T2_EXPECT", "").strip()
+if not _EXPECT_RAW:
+    if os.environ.get("Z_ALLOW_UNHASHED", "0") == "1":
+        print("T2_EXPECT_EMPTY_ACKNOWLEDGED no input hash gate; results will record "
+              "preflight.gated=False and this run must not be cited as verified", flush=True)
+    else:
+        raise SystemExit(
+            "T2_EXPECT_MISSING: T2_EXPECT is empty, so the preflight hash check would pass having "
+            "verified nothing. Set T2_EXPECT to a JSON object of {path: sha256 or '*'} covering the "
+            "corpus and the start checkpoint, or set Z_ALLOW_UNHASHED=1 to run a smoke test that is "
+            "recorded as ungated.")
+EXPECT = json.loads(_EXPECT_RAW) if _EXPECT_RAW else {}
+if not isinstance(EXPECT, dict):
+    raise SystemExit(f"T2_EXPECT must be a JSON object of path->sha256, got {type(EXPECT).__name__}")
 ARMS = [a.strip() for a in os.environ.get("Y_ARMS", "jitter_3e4").split(",") if a.strip()]
 RULE5 = os.environ.get("Y_RULE5", "0") == "1"
 GATE = os.environ.get("Y_GATE", "metrics")   # "logits" | "metrics"
@@ -65,6 +81,11 @@ TOL = float(os.environ.get("Y_TOL", "0.005"))
 # The source checkpoint is immutable on the dataset, so recording cannot damage anything.
 RULES = os.environ.get("Y_RULES", "record")
 REF = json.loads(os.environ.get("Y_REF", "{}"))
+# The eleven distances Y's gap_mean was pre-registered over. Empty means "use every gap probe",
+# which is Y's original behaviour; set it whenever extra probes are added for another purpose.
+GAP_MEAN_DISTANCES = [int(x) for x in os.environ.get("Y_GAP_MEAN_SET",
+                                                      "44,48,52,76,80,84,88,92,96,121,128")
+                      .split(",") if x.strip()]
 LR = 3e-4          # the kept configuration from Experiment V
 CLIP = 1.0; BATCH = 4; SEED = 0   # BATCH is reset to 2 + number of trained distances below
 # STEPS is resolved from the corpus it is about to train (see _resolve_steps below), never from a
@@ -147,7 +168,8 @@ torch.set_num_threads(4)
 
 pre = {p: sha(p) for p in EXPECT} if EXPECT else {}
 bad = {p: v for p, v in pre.items() if EXPECT[p] not in (None, "*") and v != EXPECT[p]}
-R["preflight"] = {"hashes": pre, "mismatch": bad, "torch": torch.__version__,
+R["preflight"] = {"hashes": pre, "mismatch": bad, "gated": bool(EXPECT),
+                  "expected_count": len(EXPECT), "torch": torch.__version__,
                   "cuda": torch.version.cuda,
                   "gpu": torch.cuda.get_device_name(0) if DEVICE == "cuda" else None}
 save()
@@ -170,10 +192,46 @@ R["cksum"] = {"tensors": len(W["model"]), "tensor_sha256": _h.hexdigest(),
               "source_experiment": W.get("experiment"), "source_step": W.get("step"),
               "format": W.get("format")}
 print("START_CKPT", {k: v for k, v in R["cksum"].items() if k != "tensor_sha256"}, flush=True)
-if W.get("experiment") not in (None, "X"):
+if W.get("experiment") != "X":
     raise SystemExit(f"start checkpoint came from experiment {W.get('experiment')!r}, expected X")
-if W.get("step") not in (None, 200):
+if W.get("step") != 200:
     raise SystemExit(f"start checkpoint is step {W.get('step')}, expected X's step 200")
+# The experiment/step fields are read from the file it is about to train on, so they prove intent,
+# not bytes: a Y-named bundle carrying a stale X header would pass them. Pin the FILE hash too.
+T2_CKPT_SHA256 = os.environ.get("T2_CKPT_SHA256", "").strip()
+_ck_file_sha = sha(CKPT)
+R["cksum"]["file_sha256"] = _ck_file_sha
+R["cksum"]["file_sha256_expected"] = T2_CKPT_SHA256 or None
+if not T2_CKPT_SHA256:
+    raise SystemExit(
+        f"T2_CKPT_SHA256_MISSING: the start checkpoint at {CKPT} has file sha256 {_ck_file_sha} "
+        f"but no expected value was supplied, so its identity is unverified. Set T2_CKPT_SHA256.")
+if _ck_file_sha != T2_CKPT_SHA256:
+    raise SystemExit(
+        f"T2_CKPT_SHA256_MISMATCH: {CKPT} is {_ck_file_sha}, expected {T2_CKPT_SHA256}. This is a "
+        f"different checkpoint from the one the package pins.")
+print(f"START_CKPT_HASH_OK {_ck_file_sha}", flush=True)
+
+# A search path holding two same-named files with different content is how a run silently trains on
+# the wrong lineage: the resolver takes the first, and the basename in the record looks right.
+_seen = {}
+# Bounded to the directories this run actually resolves inputs from: walking the working directory
+# on Kaggle would scan the whole notebook output tree for no extra safety.
+_search_dirs = [d for d in (DATA, LAB, os.path.dirname(os.path.abspath(CKPT))) if d and os.path.isdir(d)]
+for _p in dict.fromkeys(_search_dirs):
+    for _root, _dirs, _files in os.walk(_p):
+        for _fn in _files:
+            if not _fn.endswith(".pt"):
+                continue
+            _full = os.path.join(_root, _fn)
+            _h = sha(_full)
+            _prev = _seen.get(_fn)
+            if _prev and _prev[0] != _h:
+                raise SystemExit(
+                    f"AMBIGUOUS_INPUT: two files named {_fn} with different content are both on the "
+                    f"search path - {_prev[1]} ({_prev[0][:12]}) and {_full} ({_h[:12]}). Refusing to "
+                    f"guess which lineage this run trains on.")
+            _seen[_fn] = (_h, _full)
 R["lr_config"] = {"trainer_LR": LR, "library_default_LR": float(getattr(rv, "LR", float("nan")))}
 print("LR_CONFIG", R["lr_config"], flush=True)
 
@@ -295,6 +353,67 @@ if STEPS % EPOCH_STEPS != 0:
         f"per-row passes it claims cannot be uniform")
 _RULE5_REACHABLE = PASSES_PLAN >= RULE5_PASSES
 
+# ---- the module that is running must hold the safeguards, not just the commit that shipped it ----
+# A commit hash proves which file was checked out; it never proves the file still holds the guards.
+# Y is the proof: the regression itself was committed, so a clean-tree-plus-hash gate would have
+# passed it. So this asserts on the LOADED module's own globals, before any training, and writes
+# what it found into the results JSON so the artifact documents its own verification.
+# Symbols the trainer must DEFINE and hold a usable value for. Y_EVAL_BUDGET_MODE is the env var
+# that configures EVAL_BUDGET_MODE; both are audited, one as a live value and one as source-visible,
+# because losing either reintroduces the fail-open behaviour they were added to close.
+_REQUIRED_RUNTIME = ("EVAL_BUDGET_MODE", "RULE5_PASSES", "_resolve_steps", "NON_SKIPPABLE_BLOCKS")
+_REQUIRED_SOURCE = ("Y_EVAL_BUDGET_MODE", "_resolve_steps", "NON_SKIPPABLE_BLOCKS", "RULE5_PASSES",
+                    "Y_RULE5_PASSES", "_passes_done")
+
+
+def _self_audit():
+    g = globals()
+    found, missing = {}, []
+    for _n in _REQUIRED_RUNTIME:
+        if _n in g:
+            _v = g[_n]
+            found[_n] = _v if isinstance(_v, (int, float, str, bool)) or _v is None else repr(_v)
+        else:
+            missing.append(_n)
+    if missing:
+        raise SystemExit(
+            f"SAFEGUARD_MISSING: the trainer that loaded does not bind {missing}. This is the "
+            f"regression shape that shipped once already: the file on disk is not the file that was "
+            f"reviewed. Refusing to train.")
+    # The loaded source has to mention the guards too. A run whose module object binds the names but
+    # whose body never consults them is a decoy, not a safeguard.
+    try:
+        _src_text = open(os.path.abspath(__file__), encoding="utf-8").read()
+    except OSError:
+        _src_text = ""
+    absent_src = [_n for _n in _REQUIRED_SOURCE if _n not in _src_text]
+    if absent_src:
+        raise SystemExit(
+            f"SAFEGUARD_ABSENT_FROM_SOURCE: the running trainer's own source never mentions "
+            f"{absent_src}, so the guard cannot be in force however the symbols look. "
+            f"Path audited: {os.path.abspath(__file__)}")
+    checks = {}
+    # STEPS and EVAL_EVERY are resolved from the corpus, so both still sitting at the historical
+    # Y defaults means nothing actually re-derived them.
+    checks["steps_no_longer_default_200"] = STEPS != 200
+    checks["eval_every_not_both_default"] = not (STEPS == 200 and EVAL_EVERY == 25)
+    checks["rule5_threshold_derived_not_literal"] = RULE5_PASSES not in (175, 200)
+    checks["non_skippable_blocks_nonempty"] = int(NON_SKIPPABLE_BLOCKS) > 0
+    checks["steps_resolver_is_a_function"] = callable(g.get("_resolve_steps"))
+    checks["gap_mean_pinned"] = len(GAP_MEAN_DISTANCES) == 11
+    failed = [k for k, v in checks.items() if not v]
+    return {"symbols": found, "missing": missing, "source_names_required": list(_REQUIRED_SOURCE),
+            "source_absent": absent_src, "checks": checks, "failed": failed,
+            "audited_path": os.path.abspath(__file__)}
+
+_AUDIT = _self_audit()
+if _AUDIT["failed"]:
+    raise SystemExit(
+        f"SAFEGUARD_INERT: the symbols exist but the guards they represent are not in force - "
+        f"{_AUDIT['failed']}. See checks: {_AUDIT['checks']}. A guard that cannot fire is the same "
+        f"as no guard, and reads as a pass in the artifact.")
+print("SELF_AUDIT_OK", _AUDIT["checks"], flush=True)
+
 # Live state for the adaptive eval budget guard and the exposure record.
 PLAN_STATE = {"in_loop_blocks": None, "evals_run": [], "eval_s": 0.0, "skipped": [],
               "last_projection": None, "budget_halt": None}
@@ -302,16 +421,28 @@ print(f"EXPOSURE passes_planned={PASSES_PLAN} epoch_steps={EPOCH_STEPS} "
       f"rule5_threshold={RULE5_PASSES} rule5_reachable={_RULE5_REACHABLE} "
       f"rule5_enforced={RULE5}", flush=True)
 if not _RULE5_REACHABLE:
-    print(f"RULE5_DORMANT this run reaches {PASSES_PLAN} passes, below the {RULE5_PASSES}-pass "
-          f"threshold, so RULE 5 CANNOT FIRE even if the arm never learns. Stated here so the "
-          f"absence of a RULE 5 halt is not read as a pass.", flush=True)
+    # Dormancy is fail-open: the run finishes, the artifact carries no RULE 5 record, and a reader
+    # sees the absence of a failure as evidence of learning. It is a configuration error, not a
+    # result, so refuse to start. Y_RULE5_PASSES is the approved threshold; a run that cannot reach
+    # it is registered against a rule it can never exercise.
+    raise SystemExit(
+        f"RULE5_UNREACHABLE: this corpus runs {PASSES_PLAN} passes (STEPS={STEPS} / "
+        f"EPOCH_STEPS={EPOCH_STEPS}) but RULE 5 threshold is {RULE5_PASSES} passes. The rule could "
+        f"never fire, so a run that never learned would be indistinguishable from one that did. "
+        f"Build the arm with enough presentation, or set Y_RULE5_PASSES to a reachable threshold.")
+print(f"RULE5_REACHABLE passes={PASSES_PLAN} threshold={RULE5_PASSES}", flush=True)
 if EVAL_EVERY <= 0:
     raise SystemExit(f"Y_EVAL_EVERY={EVAL_EVERY} must be positive")
 if STEPS % EVAL_EVERY != 0:
     raise SystemExit(
         f"EVAL_EVERY={EVAL_EVERY} does not divide STEPS={STEPS}: the final in-loop block would land "
         f"at step {STEPS - STEPS % EVAL_EVERY}, not {STEPS}. Pick a cadence that divides {STEPS}.")
-_INLOOP_BLOCKS = STEPS // EVAL_EVERY
+# AXIOM (2026-10-29): Y's anchors all went to 0.000 at the FIRST eval and stayed there for the
+# unseen split, so the event was inside the first 25 of 200 steps. A grid whose first point is
+# half way through the run cannot see that. ONE extra early block is added, small (anchors +
+# valid only, not the full geometry sweep), so it costs a fraction of a full block.
+EARLY_STEP = int(os.environ.get("Y_EARLY_STEP", "0"))
+_INLOOP_BLOCKS = STEPS // EVAL_EVERY + (1 if EARLY_STEP > 0 else 0)
 PLAN_STATE["in_loop_blocks"] = _INLOOP_BLOCKS
 print(f"EVAL_PLAN every={EVAL_EVERY} in_loop_blocks={_INLOOP_BLOCKS} "
       f"non_skippable={NON_SKIPPABLE_BLOCKS} total={_INLOOP_BLOCKS + NON_SKIPPABLE_BLOCKS} "
@@ -535,7 +666,20 @@ def evaluate_light():
             "geometries": b,
             "train_mean": (sum(out[f"g{g}_train"]["record_exact"] for g in b) / len(b)),
             "unseen_mean": (sum(out[f"g{g}_unseen"]["record_exact"] for g in b) / len(b))}
-    out["gap_mean"] = (sum(out[f"gap{g}"]["record_exact"] for g in GAPS) / len(GAPS)) if GAPS else None
+    # gap_mean is a PRE-REGISTERED verdict input, so its composition is fixed at the eleven
+    # distances Y was registered against and must not drift when probes are added for another
+    # purpose. All eleven are exactly 0.0 at Y's baseline, so folding two extra distances in moves
+    # the baseline off zero and can flip the +0.02 "improved" test on a number the experiment never
+    # registered. Additional probes still report individually through gap_per_distance, and an
+    # extended mean is offered for information only - it must never enter the verdict.
+    _mean_set = [g for g in GAPS if g in GAP_MEAN_DISTANCES] if GAP_MEAN_DISTANCES else list(GAPS)
+    out["gap_mean"] = (sum(out[f"gap{g}"]["record_exact"] for g in _mean_set) / len(_mean_set)) \
+        if _mean_set else None
+    _extra = [g for g in GAPS if g not in _mean_set]
+    out["gap_mean_extended"] = (
+        sum(out[f"gap{g}"]["record_exact"] for g in GAPS) / len(GAPS)) if GAPS else None
+    out["gap_mean_set"] = list(_mean_set)
+    out["gap_mean_excluded"] = list(_extra)
     out["gap_per_distance"] = {str(g): out[f"gap{g}"]["record_exact"] for g in GAPS}
     return out
 
@@ -586,14 +730,33 @@ def metric_gate(tag, arm=None):
                    "needle32": got["needle32_train"]["record_exact"],
                    "valid": got["orig_valid"].get("record_exact")},
            "cpu_reference": ref}
-    agree, delta = {}, {}
+    # The CPU reference was recorded before the fields were renamed for the metric they hold, so it
+    # carries F32_probe / needle32 while this gate reports F32_probe_tok / needle32_tok. Without an
+    # alias those two lookups return None, they drop out of the comparison as "not applicable", and
+    # the gate passes on valid_tok alone - two thirds of it silently gone. Map the old names, and
+    # treat a field with no reference counterpart as a failure rather than an exemption.
+    _ALIASES = {"F32_probe_tok": ("F32_probe_tok", "F32_probe"),
+                "needle32_tok": ("needle32_tok", "needle32"),
+                "valid_tok": ("valid_tok", "valid")}
+    agree, delta, unresolved = {}, {}, []
     for k, v in out["gpu"].items():
-        r = ref.get(k)
+        r = None
+        for _alias in _ALIASES.get(k, (k,)):
+            if _alias in ref:
+                r = ref[_alias]
+                break
         if r is None or v is None:
             agree[k] = None
+            unresolved.append({"metric": k, "gpu": v, "reference": None})
         else:
             delta[k] = round(abs(float(v) - float(r)), 6)
             agree[k] = bool(delta[k] <= TOL)
+    out["unresolved"] = unresolved
+    if unresolved:
+        raise SystemExit(
+            f"METRIC_GATE_UNRESOLVED: {[u['metric'] for u in unresolved]} had no reference value, so "
+            f"the gate cannot check them. Reference keys: {sorted(ref)}. A gate that quietly drops "
+            f"the comparisons it cannot make reports a pass it did not earn.")
     out["abs_delta"] = delta
     out["agrees_within_tolerance"] = agree
     out["pass"] = any(x is not None for x in agree.values()) and all(
@@ -689,6 +852,20 @@ def _row_of(ev, step, loss, gn):
             "needle32": ev["needle32_train"]["record_exact"],
             "F32_probe": ev["train_F32"].get("record_exact"),
             "valid_tok": ev["orig_valid"]["token_acc"],
+            # AXIOM (2026-10-29): record_exact is 8 consecutive correct tokens, so it is
+            # approximately token_acc**8 and saturates flat to 0.000 below ~0.63 token accuracy.
+            # On its own it cannot distinguish "failed to learn" from "moved a lot but did not
+            # clear an 8-token bar" -- Y's eight 0.000 cells were the LATTER. The grid therefore
+            # carries token accuracy and masked CE per cell, for both splits, so a mid-run event
+            # stays visible even when the record column reads 0.
+            **{f"g{g}_tok": ev[f"g{g}_train"]["token_acc"] for g in GEOM},
+            **{f"g{g}_un_tok": ev[f"g{g}_unseen"]["token_acc"] for g in GEOM},
+            **{f"g{g}_ce": ev[f"g{g}_train"]["masked_ce"] for g in GEOM},
+            **{f"g{g}_un_ce": ev[f"g{g}_unseen"]["masked_ce"] for g in GEOM},
+            **{f"d{d}_tok": ev[f"g{d}_train"]["token_acc"] for d in TARGETS},
+            **{f"d{d}_un_tok": ev[f"g{d}_unseen"]["token_acc"] for d in TARGETS},
+            "arm_train_tok": round(sum(ev[f"g{d}_train"]["token_acc"] for d in TARGETS) / len(TARGETS), 6),
+            "unseen_tok": round(sum(ev[f"g{d}_unseen"]["token_acc"] for d in TARGETS) / len(TARGETS), 6),
             "loss": loss, "gn": gn}
 
 
@@ -749,14 +926,16 @@ def arm_loop(arm, ds, lr):
         if not rv.finite_params(model):
             raise Halt(f"nonfinite params at {arm} step {step}")
         losses.append(v)
-        if (step + 1) % EVAL_EVERY == 0:
+        _is_early = (EARLY_STEP > 0 and (step + 1) == EARLY_STEP)
+        if (step + 1) % EVAL_EVERY == 0 or _is_early:
             # --- adaptive budget guard -------------------------------------------------
             # Decide whether to spend an eval block here. The projection has to be honest about
             # every cost still ahead: the rest of training, the rest of the in-loop blocks, this
             # block, and the final measurement which is never skippable. Deriving "blocks left"
             # from the step position (not from how many evals have run) is what stops the guard
             # stalling after its own first skip.
-            _block_no = (step + 1) // EVAL_EVERY              # this block, 1-based
+            _done = (step + 1) // EVAL_EVERY + (1 if (EARLY_STEP > 0 and step + 1 >= EARLY_STEP) else 0)
+            _block_no = _done                                 # blocks done incl. this one
             _after = _INLOOP_BLOCKS - _block_no               # in-loop blocks still to come
             _per = (PLAN_STATE["eval_s"] / len(PLAN_STATE["evals_run"])
                     if PLAN_STATE["evals_run"] else None)
@@ -865,10 +1044,78 @@ def arm_loop(arm, ds, lr):
         "budget_mode": EVAL_BUDGET_MODE, "deadline_s": DEADLINE,
         "budget_halt": PLAN_STATE["budget_halt"],
         "rule5_threshold_passes": RULE5_PASSES, "rule5_reachable": _RULE5_REACHABLE,
+        "safeguard_audit": _AUDIT,
         "rule5_enforced": bool(RULE5),
     }
     save()
 
+
+def last(arm, key):
+    t = (R.get("arms", {}).get(arm) or {}).get("table") or []
+    return t[-1].get(key) if t else None
+
+
+def _targeted_key(d):
+    """Which key namespace holds distance d in the eval table, and whether that distance was trained.
+
+    The table emits g{d}_train only for d in GEOM and gap{d} only for d in GAPS. A targeted distance
+    read from the trained namespace is a different, weaker claim than one read from a gap probe that
+    was never trained, so the caller records which it used instead of letting the two look alike.
+    """
+    if d in GAPS:
+        return f"gap{d}", False, "gap"
+    if d in GEOM:
+        return f"g{d}_train", True, "trained_geometry"
+    return None, None, "absent"
+
+
+def _targeted_row(d, base_row, arm):
+    key, trained, source = _targeted_key(d)
+    b = base_row.get(key) if key else None
+    f = last(arm, key) if key else None
+    return {
+        "before_token_acc": b, "after_token_acc": f,
+        "delta": (None if b is None or f is None else round(float(f) - float(b), 6)),
+        "recovered": bool(f is not None and float(f) >= 0.5),
+        "source_namespace": source, "was_trained": trained, "key": key}
+
+
+def _targeted_selftest():
+    """Prove the verdict can reach PASS on perfect inputs before trusting any verdict it emits.
+
+    A verdict expression whose best case is PARTIAL is a broken instrument, not a negative result:
+    under the approved +/-4 arm 40 and 72 are gap probes, the old lookup read g{d}_train, got None
+    for both, and a flawless run reported "the specific collapsed distances did not recover".
+    """
+    _saved = R.get("arms")
+    _first = next(iter(ARM_SPEC), None)
+    if _first is None:
+        raise SystemExit("PASS_UNREACHABLE_SELFTEST: no arms configured, so there is no verdict to "
+                         "test; Y_ARMS is empty or unparsed")
+    try:
+        R["arms"] = {}
+        for _a in ARM_SPEC:
+            R["arms"][_a] = {"table": [{"step": 0, **{k: 0.0 for k in _selftest_keys()}},
+                                       {"step": STEPS, **{k: 0.90 for k in _selftest_keys()}}]}
+        _rows = [_targeted_row(_d, R["arms"][_first]["table"][0], _first) for _d in _TARGETED]
+    finally:
+        R["arms"] = _saved
+    _bad = [r for r in _rows if not r["recovered"] or r["source_namespace"] == "absent"]
+    if _bad:
+        raise SystemExit(
+            f"PASS_UNREACHABLE_SELFTEST: with every distance at 0.90 the verdict still reads "
+            f"{_bad}, so this run could never report PASS however well it trained. Keys looked up: "
+            f"{[(r['key'], r['source_namespace']) for r in _rows]}. Targets={_TARGETED} "
+            f"GAPS={GAPS} GEOM={GEOM}.")
+    return {"all_recovered": True, "rows": _rows}
+
+
+def _selftest_keys():
+    ks = [f"g{g}_train" for g in GEOM] + [f"gap{g}" for g in GAPS] + ["gap_mean"]
+    return ks
+
+
+_TARGETED = [40, 72]
 
 outcomes = {}
 # arm id -> (dataset, learning rate). Only the LR varies; architecture and data handling are shared.
@@ -885,6 +1132,10 @@ for _a in ARMS:
     except Exception as e:
         raise SystemExit(f"bad arm spec {_a!r}: {e}")
 R["arm_spec"] = {k: {"dataset": v[0], "learning_rate": v[1]} for k, v in ARM_SPEC.items()}
+# Before training: prove the verdict this run will emit can reach PASS at all.
+R["verdict_selftest"] = _targeted_selftest()
+print("VERDICT_SELFTEST_OK targeted", _TARGETED,
+      "keys", [(r["key"], r["source_namespace"]) for r in R["verdict_selftest"]["rows"]], flush=True)
 save()
 
 for arm, (ds, lr) in ARM_SPEC.items():
@@ -919,11 +1170,6 @@ for arm, (ds, lr) in ARM_SPEC.items():
         outcomes[arm] = str(h); print("STOP", h, flush=True)
         R.setdefault("stops", {})[arm] = str(h); save()
 R["outcomes"] = outcomes
-
-
-def last(arm, key):
-    t = (R.get("arms", {}).get(arm) or {}).get("table") or []
-    return t[-1].get(key) if t else None
 
 
 # ---- verdict: did the long distance improve without the short ones being lost? ----
@@ -983,11 +1229,22 @@ for arm in ARM_SPEC:
         before = (b.get(f"d{d}_train") or {}).get("record_exact")
         after_tr = summary[arm]["per_distance_train"][d]
         after_un = summary[arm]["per_distance_unseen"][d]
+        # AXIOM (2026-10-29): Y computed "held" from the TRAIN column alone. All three anchors
+        # recovered on their own 8 training rows (32 0.812->0.953) while the same distances on the
+        # unseen rows fell (0.828->0.425), and the verdict still printed "anchors retained: yes".
+        # Recovery on rows you trained on is memorisation; retention is the unseen column. Both are
+        # now computed and reported separately, and "held" is the one the claim needs: unseen.
+        held_tr = (None if before is None or after_tr is None
+                   else bool(float(after_tr) >= float(before) - 0.15))
+        held_un = (None if before is None or after_un is None
+                   else bool(float(after_un) >= float(before) - 0.15))
         ret[arm][d] = {"before": before, "after_train": after_tr, "after_unseen": after_un,
                        "learned": bool(after_tr is not None and after_un is not None
                                        and after_tr >= 0.5 and after_un >= 0.10),
-                       "held": (None if before is None or after_tr is None
-                                else bool(float(after_tr) >= float(before) - 0.15))}
+                       "held_train": held_tr,
+                       "held_unseen": held_un,
+                       # the retention claim is about generalisation, so unseen leads
+                       "held": held_un if held_un is not None else held_tr}
     # retention panel: key in summary (built above) -> key in the arm's measured baseline
     for skey, bkey, metric in (("needle32_final", "needle32_train", "record_exact"),
                                ("valid_final", "orig_valid", "token_acc"),
@@ -1016,19 +1273,22 @@ V["retention_ok"] = all(v["held"] for a in ret for v in ret[a].values() if v["he
 # "Recovered" means the distance the fix was aimed at is back to a usable level. X left 40 at 0.684
 # token accuracy and 72 at 0.006; Y must show both clearly above where X left them, on rows that
 # were never trained at those distances only if that distance is a gap probe.
-_TARGETED = [40, 72]
 V["targeted_fix"] = {}
 for arm in ARM_SPEC:
     tbl = A.get(arm, {}).get("table") or []
     base_row = next((r_ for r_ in tbl if r_.get("step") == 0), {})
     V["targeted_fix"][arm] = {}
     for d in _TARGETED:
-        b = base_row.get(f"g{d}_train")
-        f = last(arm, f"g{d}_train")
-        V["targeted_fix"][arm][str(d)] = {
-            "before_token_acc": b, "after_token_acc": f,
-            "delta": (None if b is None or f is None else round(float(f) - float(b), 6)),
-            "recovered": bool(f is not None and float(f) >= 0.5)}
+        # A targeted distance may be a TRAINED geometry or a GAP probe, and those live in different
+        # key namespaces: the table emits g{d}_train only for d in GEOM and gap{d} only for
+        # d in GAPS. Y trained 40 and 72 as +/-8 offsets so g40_train existed; under the approved
+        # +/-4 arm they are gap probes, g40_train never exists, the old lookup returned None for
+        # both, and recovered was False by construction - a flawless run would have reported
+        # "the specific collapsed distances did not recover". Read whichever namespace holds it,
+        # and record which one it was: a targeted distance read from gap* is the stronger claim
+        # (never trained), while one silently read from the trained namespace would be a
+        # manufactured number.
+        V["targeted_fix"][arm][str(d)] = _targeted_row(d, base_row, arm)
     # gap recovery: the honest test, on distances this run never trained
     gb = base_row.get("gap_mean")
     gf = summary[arm]["gap_mean_final"]
@@ -1057,8 +1317,15 @@ else:
         parts.append("NO TARGETS")
     parts.append("anchors learned: " + ", ".join(f"{d}={'yes' if learned[d] else 'NO'}"
                                                  for d in TARGETS))
-    parts.append("anchors retained: " + ", ".join(f"{d}={'yes' if held[d] else 'NO'}"
-                                                  for d in TARGETS))
+    _htr = {d: all(ret[a][d]["held_train"] for a in ARM_SPEC
+                   if ret[a][d]["held_train"] is not None) for d in TARGETS}
+    _hun = {d: all(ret[a][d]["held_unseen"] for a in ARM_SPEC
+                   if ret[a][d]["held_unseen"] is not None) for d in TARGETS}
+    parts.append("anchors retained (unseen): " + ", ".join(
+        f"{d}={'yes' if _hun[d] else 'NO'}" for d in TARGETS))
+    # printed next to it so memorisation cannot pass as retention
+    parts.append("anchors retained (train): " + ", ".join(
+        f"{d}={'yes' if _htr[d] else 'NO'}" for d in TARGETS))
     parts.append("targeted 40/72 recovered: " +
                  ", ".join(f"{d}={'yes' if tf[a][str(d)]['recovered'] else 'NO'}"
                            for a in ARM_SPEC for d in _TARGETED))
