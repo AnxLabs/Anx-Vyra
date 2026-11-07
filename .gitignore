@@ -33,6 +33,7 @@ kaggle.json
 
 # exact-artifact packaging work: private inputs, generated notebooks, receipts
 /packaging-work/
+rehearsal_Y72_40.pt
 
 # OS noise
 .DS_Store

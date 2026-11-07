@@ -31,15 +31,23 @@ if not torch.cuda.is_available(): stop('GPU unavailable; no CPU fallback')
 def make():
     return m.to('cuda')
 BX/'make_corpus_X.py':'abc'
+if tuple(Y72['rows'].shape)!=(8,512) or tuple(Y72['unseen'].shape)!=(40,512): stop('Y72 shape')
+def replay_at(s):
+      idx=[(s*RB+j)%8 for j in range(RB)]
+      return Y72['rows'][idx].long(),Y72['mask'][idx].long(),idx
+if any(v['row_overlap'] or v['payload_overlap'] for v in dis.values()): stop('BLOCKED overlap '+json.dumps(dis))
 opt=rv.make_optimizer(m); torch.cuda.reset_peak_memory_stats()
 for arm,lam in (('treatment',0.25),):
     pass
+A={'lambda':lam,'steps':0,'loss':[],'trajectory':{},'eval_s':{}}
 for s in range(STEPS):
     tok,msk=batch_at(s); tok=tok.to('cuda'); msk=msk.to('cuda'); lx=ce(m(tok),tok,msk); loss=lx; ly=None
     if lam: yt,ym,_=replay_at(s); yt=yt.to('cuda'); ym=ym.to('cuda'); ly=ce(m(yt),yt,ym); loss=lx+lam*ly
     loss.backward()
     torch.nn.utils.clip_grad_norm_([p for p in m.parameters() if p.grad is not None],1.0)
     opt.step(rv.expert_selection(m)); m.zero_grad(set_to_none=True)
+    A['trajectory'][str(step)]=eval_block(m)
+R['baseline']=eval_block(m); R['baseline_eval_s']=time.time()-t; save()
   m=make(); t=time.time(); R['baseline']=eval_block(m);
 A['replay_extra_note']='treatment adds 2-row replay CE+backward each update; equal updates != equal compute'
 """
@@ -73,6 +81,11 @@ def test_prepare_treatment_keeps_preflight_and_applies_union_once():
     assert "tel.finish_update(m, opt, tel_first, tel_second, selected)" in patched
     assert "A['expert_telemetry']=tel.summary()" in patched
     assert "replay_telemetry.py" in patched
+    assert "lgx=m(tok)" in patched
+    assert "%40 for j in range(RB)" in patched
+    assert "%8 for j in range(RB)" not in patched
+    assert "preclip_diag.begin_separate" in patched
+    assert "rehearsal_Y72_40.pt" in patched
     with pytest.raises(ValueError, match="TREATMENT_BUILDER_PIN_MISSING"):
         prepare_treatment(patched, "builder-text")
 
@@ -142,6 +155,7 @@ def test_missing_real_inputs_do_not_validate(tmp_path):
             "--y-archive", str(tmp_path / "missing-y.bin"),
             "--builder-source", str(tmp_path / "missing-builder.py"),
             "--archive-audit", str(tmp_path / "missing-audit.json"),
+            "--replay-artifact", str(tmp_path / "missing-replay.pt"),
             "--inputs", str(tmp_path / "missing-inputs"),
             "--runtime", str(tmp_path / "missing-runtime"),
             "--output", str(tmp_path / "out"),
@@ -158,7 +172,7 @@ def test_missing_real_inputs_do_not_validate(tmp_path):
 
 
 def test_package_output_inside_the_repository_is_refused(tmp_path):
-    for name in ("notebook.ipynb", "x.bin", "y.bin", "builder.py", "audit.json"):
+    for name in ("notebook.ipynb", "x.bin", "y.bin", "builder.py", "audit.json", "replay.pt"):
         (tmp_path / name).write_text("present\n")
     inputs = tmp_path / "inputs"
     inputs.mkdir()
@@ -174,6 +188,7 @@ def test_package_output_inside_the_repository_is_refused(tmp_path):
             "--y-archive", str(tmp_path / "y.bin"),
             "--builder-source", str(tmp_path / "builder.py"),
             "--archive-audit", str(tmp_path / "audit.json"),
+            "--replay-artifact", str(tmp_path / "replay.pt"),
             "--inputs", str(inputs),
             "--runtime", str(tmp_path / "runtime"),
             "--output", str(REPO / "packaging-work"),

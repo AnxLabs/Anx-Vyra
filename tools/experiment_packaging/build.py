@@ -12,7 +12,11 @@ import json
 import zipfile
 from pathlib import Path
 
+import shutil
+
 from expert_union import apply_expert_union, apply_replay_telemetry
+from expanded_rehearsal import apply_expanded_rehearsal
+from rehearsal_artifact import PINNED_BYTES, PINNED_SHA256, validate_rehearsal_file
 
 BUILDER_SHA = "a34984d3aa60100cf282c3e98d8a55409ae6ed0fc0f543d93d9d0ba463e0b5cd"
 
@@ -114,6 +118,7 @@ def prepare_treatment(treatment, builder_text):
     treatment = treatment.replace(before, init + before)
     treatment = apply_expert_union(treatment)
     treatment = apply_replay_telemetry(treatment)
+    treatment = apply_expanded_rehearsal(treatment)
     return treatment, builder_text
 
 
@@ -145,6 +150,9 @@ def build(args):
     assets["treatment.py"] = treatment
     assets["dependency_gate.py"] = Path(__file__).with_name("dependency_gate.py").read_text()
     assets["replay_telemetry.py"] = Path(__file__).with_name("replay_telemetry.py").read_text()
+    assets["preclip_diag.py"] = Path(__file__).with_name("preclip_diag.py").read_text()
+    assets["rehearsal_artifact.py"] = Path(__file__).with_name("rehearsal_artifact.py").read_text()
+    assets["rehearsal_Y72_40_manifest.json"] = Path(__file__).with_name("rehearsal_Y72_40_manifest.json").read_text()
     audit = json.loads(Path(args.archive_audit).read_text())
     datasets = check_archives(args.x_archive, args.y_archive, audit)
     lock = {
@@ -168,6 +176,10 @@ for name,text in assets.items():
     if hashlib.sha256(text.encode()).hexdigest()!=asset_hashes[name]:raise ValueError('BOOTSTRAP_CORRUPT '+name)
     Path('/kaggle/working',name).write_text(text)
 sys.path.insert(0,'/kaggle/working')
+replay_bytes=Path('/submission/rehearsal_Y72_40.pt').read_bytes()
+if hashlib.sha256(replay_bytes).hexdigest()!=""" + repr(PINNED_SHA256) + """: raise ValueError('REPLAY_ARTIFACT_HASH')
+if len(replay_bytes)!=""" + str(PINNED_BYTES) + """: raise ValueError('REPLAY_ARTIFACT_BYTES')
+Path('/kaggle/working/rehearsal_Y72_40.pt').write_bytes(replay_bytes)
 from dependency_gate import verify_lock
 verified=verify_lock()
 Path('/kaggle/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
@@ -203,6 +215,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
     }
     kernel = out / "kernel"
     kernel.mkdir(exist_ok=True)
+    validate_rehearsal_file(args.replay_artifact)
+    shutil.copyfile(args.replay_artifact, kernel / "rehearsal_Y72_40.pt")
     (kernel / "replay.ipynb").write_text(json.dumps(built, indent=1, sort_keys=True) + "\n")
     meta = {
         "id": "anjorosimoaj/vyra-replay175-packaged",
@@ -229,7 +243,10 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "immutable_protocol_sha256": lock["assets"]["PROTOCOL.json"],
         "expert_union_applied": True,
         "replay_telemetry_embedded": True,
-        "no_scientific_gate_or_input_change": True,
+        "replay_artifact_sha256": PINNED_SHA256,
+        "replay_rows": 40,
+        "training_gates_unchanged": True,
+        "no_scientific_gate_or_input_change": False,
         "no_submission": True,
         "real_input_validation": False,
     }
@@ -246,6 +263,7 @@ if __name__ == "__main__":
         "y-archive",
         "builder-source",
         "archive-audit",
+        "replay-artifact",
         "output",
     ):
         parser.add_argument("--" + name, required=True)

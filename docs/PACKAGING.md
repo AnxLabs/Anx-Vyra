@@ -45,6 +45,24 @@ cross-tab.
 The CPU preflight exits before this loop, so a preflight receipt does not
 exercise the counters. `tests/test_expert_union_replay.py` does.
 
+## Expanded rehearsal preparation
+
+Training replay reads an external 40-row artifact, hash
+`abd8d94d7e105deab2a19c461266c89ab308f7edf67b4394b638afdb7cb474d7`, 88749
+bytes. That file is not in the repository. The original 8 rows stay byte
+identical inside it and 32 rows are added. Replay still takes 2 rows each
+update, now `(2*s+j) % 40`, 350 presentations, 30 rows repeated 9 times and
+10 rows repeated 8 times. X batches, seed 0, 175 updates, loss weight 0.25,
+learning rate, clip, optimizer, and heldout eval are unchanged. Heldout rows
+are still the original unseen split, not the 40 training rows.
+
+On updates 1, 75, 125, and 175 the caller reads separate pre-clip gradients
+with `autograd.grad` on the losses already produced, including one X64 row
+from that same X forward. The combined norm is the return value of the
+existing clip. These reads are not the expert-telemetry counters. GPU time
+for the four reads and the extra rehearsal readouts is unmeasured. A preflight
+receipt still stops before any forward.
+
 ## Command
 
 Run this outside the repository. The target refuses an output path inside the
@@ -57,6 +75,7 @@ python3 tools/experiment_packaging/validate_experiment_package.py \
   --y-archive archives/Y/vyra-y-bundle.zip \
   --builder-source sources/make_corpus_X.py \
   --archive-audit REMOTE_ARCHIVE_AUDIT.json \
+  --replay-artifact /path/to/rehearsal_Y72_40.pt \
   --inputs inputs \
   --runtime /path/to/cpu-venv \
   --output "$HOME/replay-package-out"

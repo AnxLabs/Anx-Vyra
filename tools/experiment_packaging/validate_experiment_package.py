@@ -35,6 +35,7 @@ def assess(args):
         "archive-audit": args.archive_audit,
         "inputs": args.inputs,
         "runtime": args.runtime,
+        "replay-artifact": args.replay_artifact,
     }
     missing = [name + "=" + value for name, value in required.items() if not Path(value).exists()]
     if missing:
@@ -87,12 +88,14 @@ def run_validated(args):
         "--y-archive", args.y_archive,
         "--builder-source", args.builder_source,
         "--archive-audit", args.archive_audit,
+        "--replay-artifact", args.replay_artifact,
     ]
     build(argparse.Namespace(**_namespace(common, first)))
     build(argparse.Namespace(**_namespace(common, second)))
     for relative in (
         "kernel/replay.ipynb",
         "kernel/kernel-metadata.json",
+        "kernel/rehearsal_Y72_40.pt",
         "dependency_lock.json",
     ):
         if not _same(first / relative, second / relative):
@@ -113,6 +116,7 @@ def run_validated(args):
     for relative in (
         "package/kernel/replay.ipynb",
         "package/kernel/kernel-metadata.json",
+        "package/kernel/rehearsal_Y72_40.pt",
         "package/dependency_lock.json",
         "archives/x-archive.zip",
         "archives/y-archive.zip",
@@ -153,6 +157,7 @@ def _namespace(common, output):
         "y-archive",
         "builder-source",
         "archive-audit",
+        "replay-artifact",
         "output",
     ):
         parser.add_argument("--" + name, required=True)
@@ -168,6 +173,7 @@ def main(argv=None):
     parser.add_argument("--archive-audit", required=True)
     parser.add_argument("--inputs", required=True)
     parser.add_argument("--runtime", required=True)
+    parser.add_argument("--replay-artifact", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
     blocked = assess(args)
