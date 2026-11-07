@@ -47,9 +47,12 @@ exercise the counters. `tests/test_expert_union_replay.py` does.
 
 ## Expanded rehearsal preparation
 
-Training replay reads an external 40-row artifact, hash
+Training replay uses a 40-row artifact, hash
 `abd8d94d7e105deab2a19c461266c89ab308f7edf67b4394b638afdb7cb474d7`, 88749
-bytes. That file is not in the repository. The original 8 rows stay byte
+bytes. That file is not in the repository. The builder embeds those bytes in
+the notebook and the notebook checks the hash before writing them to
+`/kaggle/working/rehearsal_Y72_40.pt`. There is no `/submission` path and no
+new dataset mount. The original 8 rows stay byte
 identical inside it and 32 rows are added. Replay still takes 2 rows each
 update, now `(2*s+j) % 40`, 350 presentations, 30 rows repeated 9 times and
 10 rows repeated 8 times. X batches, seed 0, 175 updates, loss weight 0.25,
@@ -62,6 +65,18 @@ from that same X forward. The combined norm is the return value of the
 existing clip. These reads are not the expert-telemetry counters. GPU time
 for the four reads and the extra rehearsal readouts is unmeasured. A preflight
 receipt still stops before any forward.
+
+## Runtime file contract
+
+| File | How it reaches the notebook | Runtime path | Status |
+| --- | --- | --- | --- |
+| Notebook source, including treatment, gates, and the rehearsal bytes | The notebook Kaggle executes | decoded to `/kaggle/working/rehearsal_Y72_40.pt` only after the pinned SHA matches | Chosen transport. The failed job wrote other `/kaggle/working` assets before it died. |
+| `rehearsal_Y72_40.pt` as a file beside the notebook | Not transported | `/submission/rehearsal_Y72_40.pt` | Observed `FileNotFoundError` on Kaggle. The CPU sandbox had invented that mount. It is no longer used. |
+| X bundle | Existing dataset attachment named in the kernel metadata | `/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle` | Documented package path. This failed job did not reach it. |
+| Y bundle | Existing dataset attachment named in the kernel metadata | `/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle` | Documented package path. This failed job did not reach it. |
+| `/tools`, `/runtime` | CPU sandbox harness only | not read by the notebook | The harness mounts the notebook at `/tools/replay.ipynb` and does not create `/submission`. |
+
+No new dataset is declared and nothing here uploads one. A rehearsal dataset mount is not claimed.
 
 ## Command
 

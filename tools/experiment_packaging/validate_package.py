@@ -56,19 +56,28 @@ def command(package, inputs, work, runtime):
     ]
     if Path("/lib64").is_dir():
         cmd += ["--ro-bind", "/lib64", "/lib64"]
+    notebook = package / "kernel" / "replay.ipynb"
+    if not notebook.is_file():
+        raise ValueError("NOTEBOOK_MISSING")
+    # /tools and /runtime are the test harness, not Kaggle inputs. The notebook
+    # file is mounted only there. /submission is not created. Dataset roots are
+    # the two attachments already named by the package.
     cmd += [
         "--proc", "/proc",
         "--dev", "/dev",
         "--tmpfs", "/tmp",
+        "--tmpfs", "/tools",
         "--ro-bind", str(runtime), "/runtime",
-        "--ro-bind", str(package / "kernel"), "/submission",
-        "--ro-bind", str(tools), "/tools",
+        "--ro-bind", str(tools / "execute_notebook.py"), "/tools/execute_notebook.py",
+        "--ro-bind", str(notebook), "/tools/replay.ipynb",
         "--ro-bind", str(x_root), "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
         "--ro-bind", str(y_root), "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle",
         "--bind", str(work), "/kaggle/working",
         "--chdir", "/kaggle/working",
-        "/runtime/bin/python", "-I", "/tools/execute_notebook.py", "/submission/replay.ipynb",
+        "/runtime/bin/python", "-I", "/tools/execute_notebook.py", "/tools/replay.ipynb",
     ]
+    if "/submission" in cmd:
+        raise ValueError("RUNTIME_CONTRACT_FORBIDDEN /submission")
     return cmd
 
 
@@ -103,6 +112,8 @@ def validate(package, inputs, work, log, runtime):
     environment = json.loads((work / "sandbox_probe.json").read_text())
     if not environment["network_blocked"] or environment["outside_workspace_visible"]:
         raise ValueError("Isolation failed")
+    if environment.get("submission_exists") is not False:
+        raise ValueError("SANDBOX_PRIVILEGED_MOUNT /submission")
     report = {
         "status": "PASS",
         "elapsed_s": time.monotonic() - start,

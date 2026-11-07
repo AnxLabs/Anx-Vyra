@@ -95,7 +95,6 @@ def run_validated(args):
     for relative in (
         "kernel/replay.ipynb",
         "kernel/kernel-metadata.json",
-        "kernel/rehearsal_Y72_40.pt",
         "dependency_lock.json",
     ):
         if not _same(first / relative, second / relative):
@@ -116,7 +115,6 @@ def run_validated(args):
     for relative in (
         "package/kernel/replay.ipynb",
         "package/kernel/kernel-metadata.json",
-        "package/kernel/rehearsal_Y72_40.pt",
         "package/dependency_lock.json",
         "archives/x-archive.zip",
         "archives/y-archive.zip",

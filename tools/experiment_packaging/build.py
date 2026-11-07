@@ -12,11 +12,10 @@ import json
 import zipfile
 from pathlib import Path
 
-import shutil
-
 from expert_union import apply_expert_union, apply_replay_telemetry
 from expanded_rehearsal import apply_expanded_rehearsal
-from rehearsal_artifact import PINNED_BYTES, PINNED_SHA256, validate_rehearsal_file
+from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
+from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
 
 BUILDER_SHA = "a34984d3aa60100cf282c3e98d8a55409ae6ed0fc0f543d93d9d0ba463e0b5cd"
 
@@ -165,7 +164,9 @@ def build(args):
         ),
     }
     assets["dependency_lock.json"] = json.dumps(lock, indent=2, sort_keys=True)
-    program = """import os,sys,json,time,hashlib,subprocess
+    replay_path = Path(args.replay_artifact)
+    validate_rehearsal_file(replay_path)
+    program = """import os,sys,json,time,hashlib,subprocess,base64
 from pathlib import Path
 notebook_start=time.monotonic()
 """
@@ -176,11 +177,7 @@ for name,text in assets.items():
     if hashlib.sha256(text.encode()).hexdigest()!=asset_hashes[name]:raise ValueError('BOOTSTRAP_CORRUPT '+name)
     Path('/kaggle/working',name).write_text(text)
 sys.path.insert(0,'/kaggle/working')
-replay_bytes=Path('/submission/rehearsal_Y72_40.pt').read_bytes()
-if hashlib.sha256(replay_bytes).hexdigest()!=""" + repr(PINNED_SHA256) + """: raise ValueError('REPLAY_ARTIFACT_HASH')
-if len(replay_bytes)!=""" + str(PINNED_BYTES) + """: raise ValueError('REPLAY_ARTIFACT_BYTES')
-Path('/kaggle/working/rehearsal_Y72_40.pt').write_bytes(replay_bytes)
-from dependency_gate import verify_lock
+""" + rehearsal_bootstrap(replay_path.read_bytes()) + """from dependency_gate import verify_lock
 verified=verify_lock()
 Path('/kaggle/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
 from input_preflight import validate, XID, YID
@@ -196,6 +193,7 @@ print('HARNESS',result)
 Path('/kaggle/working/notebook_timing.json').write_text(json.dumps({'notebook_cell_wall_s':time.monotonic()-notebook_start,'platform_timeout_requires_CLI_flag':900,'preflight_only':os.environ.get('VYRA_PREFLIGHT_ONLY')=='1','coverage':'queue/provisioning not bounded'}))
 if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess failed/timed out; no retry')
 """
+    assert_notebook_contract(program)
     ast.parse(program)
     for name, text in assets.items():
         if name.endswith(".py"):
@@ -215,8 +213,6 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
     }
     kernel = out / "kernel"
     kernel.mkdir(exist_ok=True)
-    validate_rehearsal_file(args.replay_artifact)
-    shutil.copyfile(args.replay_artifact, kernel / "rehearsal_Y72_40.pt")
     (kernel / "replay.ipynb").write_text(json.dumps(built, indent=1, sort_keys=True) + "\n")
     meta = {
         "id": "anjorosimoaj/vyra-replay175-packaged",
@@ -244,6 +240,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "expert_union_applied": True,
         "replay_telemetry_embedded": True,
         "replay_artifact_sha256": PINNED_SHA256,
+        "replay_transport": "embedded_in_notebook_base64",
+        "submission_path_used": False,
         "replay_rows": 40,
         "training_gates_unchanged": True,
         "no_scientific_gate_or_input_change": False,

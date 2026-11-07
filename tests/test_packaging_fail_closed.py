@@ -18,6 +18,7 @@ from build import check_archives, prepare_treatment, require_builder  # noqa: E4
 from expert_union import apply_expert_union  # noqa: E402
 from launch_gate import main as launch_main  # noqa: E402
 from negative_tests import CASES, stage_negative_kernel  # noqa: E402
+from runtime_contract import assert_notebook_contract, materialize_embedded, rehearsal_bootstrap  # noqa: E402
 from validate_package import command  # noqa: E402
 from verify_receipt import verify, write_receipt  # noqa: E402
 
@@ -228,11 +229,40 @@ def test_sandbox_command_does_not_mount_the_checkout(tmp_path, monkeypatch):
     (inputs / "vyra-x-bundle").mkdir(parents=True)
     (inputs / "vyra-y-bundle").mkdir(parents=True)
     package = tmp_path / "package"
-    (package / "kernel").mkdir(parents=True)
+    kernel = package / "kernel"
+    kernel.mkdir(parents=True)
+    (kernel / "replay.ipynb").write_text("{}\n")
+    sidecar = kernel / "rehearsal_Y72_40.pt"
+    sidecar.write_bytes(b"host-local-extra-not-transported")
     argv = command(package, inputs, tmp_path / "work", runtime)
     binds = [argv[i + 1] for i, arg in enumerate(argv[:-1]) if arg in ("--ro-bind", "--bind")]
     assert str(REPO) not in binds
-    assert str(PACKAGING) in binds
+    assert str(PACKAGING) not in binds
+    assert str(sidecar) not in argv
+    assert "/submission" not in argv
+    assert "/tools/replay.ipynb" in argv
+    assert "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle" in argv
+    assert "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle" in argv
     assert str(inputs / "vyra-x-bundle") in binds
     assert "/workspace" not in argv
     assert "VYRA_PREFLIGHT_ONLY" in argv
+
+
+def test_rehearsal_bytes_are_embedded_and_submission_is_refused():
+    with pytest.raises(ValueError, match="REPLAY_ARTIFACT_HASH"):
+        rehearsal_bootstrap(b"not-the-pinned-artifact")
+    with pytest.raises(ValueError, match="REPLAY_ARTIFACT_HASH"):
+        materialize_embedded("bm90LXRoZS1waW5uZWQtYXJ0aWZhY3Q=")
+    bad = (
+        "embedded_rehearsal_b64='x'\n"
+        "replay_bytes=base64.b64decode(embedded_rehearsal_b64)\n"
+        "Path('/submission/rehearsal_Y72_40.pt').read_bytes()\n"
+        "Path('/kaggle/working/rehearsal_Y72_40.pt')\n"
+        "'abd8d94d7e105deab2a19c461266c89ab308f7edf67b4394b638afdb7cb474d7'\n"
+        "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle\n"
+        "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle\n"
+    )
+    with pytest.raises(ValueError, match="RUNTIME_CONTRACT_FORBIDDEN /submission"):
+        assert_notebook_contract(bad)
+    ok = bad.replace("Path('/submission/rehearsal_Y72_40.pt').read_bytes()\n", "")
+    assert_notebook_contract(ok)

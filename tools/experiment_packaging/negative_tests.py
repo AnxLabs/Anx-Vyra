@@ -21,11 +21,10 @@ CASES = {
 
 
 def stage_negative_kernel(package, target, notebook_text):
-    """Copy every kernel companion, then write the mutated notebook.
+    """Copy kernel companions, then write the mutated notebook.
 
-    The wrong-path notebook still reads rehearsal_Y72_40.pt before it reaches
-    the dataset mapping. Omitting that file fails with FileNotFoundError
-    instead of the dataset-root rejection.
+    Companions are not Kaggle inputs. The rehearsal bytes travel inside the
+    notebook. The wrong-path case still has to fail on the dataset root.
     """
     source = Path(package) / "kernel"
     dest = Path(target) / "kernel"
