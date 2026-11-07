@@ -27,6 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 ORCH = PACKAGING / "validate_experiment_package.py"
 
 MINIMAL_TREATMENT = """
+HARD=600; SOFT=598; STEPS=175; RB=2; EVAL_AT={75,125,175}
 if not torch.cuda.is_available(): stop('GPU unavailable; no CPU fallback')
   from gpu_guard import require_t4
   R['gpu']=require_t4(torch); save()
@@ -48,7 +49,7 @@ for s in range(STEPS):
     loss.backward()
     torch.nn.utils.clip_grad_norm_([p for p in m.parameters() if p.grad is not None],1.0)
     opt.step(rv.expert_selection(m)); m.zero_grad(set_to_none=True)
-    A['trajectory'][str(step)]=eval_block(m)
+    A['trajectory'][str(step)]=eval_block(m); A['eval_s'][str(step)]=time.time()-te
 R['baseline']=eval_block(m); R['baseline_eval_s']=time.time()-t; save()
   m=make(); t=time.time(); R['baseline']=eval_block(m);
 A['replay_extra_note']='treatment adds 2-row replay CE+backward each update; equal updates != equal compute'

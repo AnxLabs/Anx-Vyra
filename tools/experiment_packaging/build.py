@@ -14,6 +14,7 @@ from pathlib import Path
 
 from expert_union import apply_expert_union, apply_replay_telemetry
 from expanded_rehearsal import apply_expanded_rehearsal
+from update200 import apply_update200
 from name_order import used_before_binding
 from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
 from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
@@ -119,6 +120,7 @@ def prepare_treatment(treatment, builder_text):
     treatment = apply_expert_union(treatment)
     treatment = apply_replay_telemetry(treatment)
     treatment = apply_expanded_rehearsal(treatment)
+    treatment = apply_update200(treatment)
     return treatment, builder_text
 
 
@@ -151,6 +153,7 @@ def build(args):
     assets["dependency_gate.py"] = Path(__file__).with_name("dependency_gate.py").read_text()
     assets["replay_telemetry.py"] = Path(__file__).with_name("replay_telemetry.py").read_text()
     assets["preclip_diag.py"] = Path(__file__).with_name("preclip_diag.py").read_text()
+    assets["x64_checkpoint.py"] = Path(__file__).with_name("x64_checkpoint.py").read_text()
     assets["rehearsal_artifact.py"] = Path(__file__).with_name("rehearsal_artifact.py").read_text()
     assets["rehearsal_Y72_40_manifest.json"] = Path(__file__).with_name("rehearsal_Y72_40_manifest.json").read_text()
     audit = json.loads(Path(args.archive_audit).read_text())
@@ -248,6 +251,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "replay_transport": "embedded_in_notebook_base64",
         "submission_path_used": False,
         "replay_rows": 40,
+        "updates": 200,
+        "checkpoint_updates": [175, 200],
         "training_gates_unchanged": True,
         "no_scientific_gate_or_input_change": False,
         "no_submission": True,

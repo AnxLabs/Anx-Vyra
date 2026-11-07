@@ -10,8 +10,10 @@ import random
 
 import torch
 
-DIAGNOSTIC_UPDATES = (1, 75, 125, 175)
+DIAGNOSTIC_UPDATES = (1, 75, 125, 175, 200)
 X64_ROW = 4
+# Needle rows in the six-row X batch (batch_at: gen, gen, slot32, then d=32,64,109).
+TASK_ROWS = (("X32", 3), ("X64", 4), ("X109", 5))
 CLIP_EPSILON = 1e-6
 _PENDING = None
 
@@ -221,6 +223,24 @@ def begin_separate(model, opt, logits_x, loss_x, loss_y, tokens_x, mask_x, first
             del g64, packed_64, loss_x64
         gy_norm = 0.0 if packed_y is None else _norm(packed_y)
         weighted = None if packed_y is None else _norm(packed_y * float(weight))
+        per_task = {}
+        for task, row in TASK_ROWS:
+            if logits_x is None or logits_x.shape[0] <= row:
+                per_task[task] = {"row_index": row, "omitted": "X batch has no such row"}
+                continue
+            loss_t = row_masked_mean_ce(logits_x, tokens_x, mask_x, row)
+            g_t = torch.autograd.grad(loss_t, params, retain_graph=True, create_graph=False, allow_unused=True)
+            packed_t = _pack(g_t)
+            norm_t = _norm(packed_t)
+            per_task[task] = {
+                "row_index": row,
+                "row_ce": float(loss_t.detach()),
+                "grad_norm": norm_t,
+                "cosine_vs_y": _cosine(packed_t, packed_y),
+                "cosine_vs_x_total": _cosine(packed_t, packed_x),
+                "weighted_y_over_task_norm": None if weighted is None or norm_t == 0.0 else weighted / norm_t,
+            }
+            del g_t, packed_t, loss_t
         record = {
             "gx_norm": _norm(packed_x),
             "gy_norm": gy_norm,
@@ -229,6 +249,8 @@ def begin_separate(model, opt, logits_x, loss_x, loss_y, tokens_x, mask_x, first
             "gx64_norm": x64_norm,
             "cosine_x64_y": x64_cosine,
             "x64_row_index": X64_ROW,
+            "per_task_rows": per_task,
+            "per_task_scope": "one sampled needle row per task from the same X forward; row grad is of that row's mean CE, unweighted by the 1/6 batch mean",
             "x64_scope": x64_reason or "one sampled X row, index 4, from the same X forward; not the X64 distribution",
             "weight": float(weight),
             "norm_dtype": "float64",
