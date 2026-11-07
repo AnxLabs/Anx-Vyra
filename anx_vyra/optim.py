@@ -29,7 +29,13 @@ EPS = 1e-8
 
 
 class SliceAdam:
-    """Adam with per-expert step counts; expert slices step only when they were selected."""
+    """Adam with per-expert step counts; expert slices step only when they were selected.
+
+    The selection argument is the only memory of which slices to touch. This
+    class does not keep experts from an earlier forward. A caller that
+    backpropagates through more than one forward before one step has to pass
+    the union itself.
+    """
 
     def __init__(self, params: list[torch.nn.Parameter], lr: float | None = None) -> None:
         global LR

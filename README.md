@@ -314,6 +314,10 @@ Stated plainly, because a research repository is only useful if its edges are vi
   continuation results is not included.
 - **Optimizer has a sharp edge.** The module-level `LR` global is a real hazard; see the warning
   above.
+- **A second forward drops the first expert selection.** `expert_selection` reports only the last
+  forward, and SliceAdam updates only the dict it is given. Replay training that runs a second
+  forward before the one step has to capture the first selection and union the second. Single-forward
+  training is unchanged. The packaged replay caller does that union; see `docs/PACKAGING.md`.
 
 ## Repository layout
 
@@ -326,7 +330,8 @@ tests/           integrity tests (parameter counts, causality, routing, optimize
 benchmarks/      reproduce_retrieval.py - train and measure one distance end to end
 results/         machine-readable results from the reported experiments
 tools/           publish_experiment.py - fail-closed publisher for new experiment results
-docs/            figures, experiment log, and the publishing workflow
+tools/experiment_packaging/  exact notebook builder and isolated CPU preflight gate
+docs/            figures, experiment log, publishing workflow, packaging rebuild
 ```
 
 ## Citation and license

@@ -318,7 +318,14 @@ def reset_expert_load(model: ToyLM) -> None:
 
 
 def expert_selection(model: ToyLM) -> dict[int, list[int]]:
-    """Which experts each FFN actually used on the last forward pass."""
+    """Which experts each FFN actually used on the last forward pass.
+
+    A later forward replaces ``_selected``. A single-forward update can pass
+    this dict straight to SliceAdam. A second forward in the same update drops
+    experts that only the first forward used, unless the caller captured this
+    dict and unioned it before the one optimizer step. This function does not
+    accumulate across forwards or across updates.
+    """
     selected: dict[int, list[int]] = {}
     for module in model.modules():
         if not isinstance(module, Experts):

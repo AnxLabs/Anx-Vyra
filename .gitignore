@@ -31,6 +31,9 @@ kaggle.json
 *.pem
 *.key
 
+# exact-artifact packaging work: private inputs, generated notebooks, receipts
+/packaging-work/
+
 # OS noise
 .DS_Store
 Thumbs.db
