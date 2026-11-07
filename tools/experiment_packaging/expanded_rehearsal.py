@@ -67,18 +67,21 @@ def apply_expanded_rehearsal(source):
         "if _added & set(RY['payloads'][:40]): stop('added payloads overlap original8')",
         "if _added & set(Y72['unseen_payloads']): stop('added payloads overlap Y72 unseen')",
     ])
-    loader_at = out.index(_LOADER)
-    loader_line_end = loader_at + len(_LOADER)
-    loader_line_start = out.rfind("\n", 0, loader_at) + 1
-    loader_line = out[loader_line_start:loader_line_end]
-    loader_indent = loader_line[:len(loader_line) - len(loader_line.lstrip())]
+    # Load preclip_diag before the baseline readout, which is its first use.
+    # It used to load after the telemetry loader, below the baseline line,
+    # and the expanded40 Kaggle run died there with a NameError.
+    base_at = out.index(_BASE)
+    line_start = out.rfind("\n", 0, base_at) + 1
+    base_line = out[line_start:base_at]
+    indent = base_line[:len(base_line) - len(base_line.lstrip())]
     diag_loader = "".join(
-        loader_indent + line + "\n" for line in (
-            "_dspec=_ilu.spec_from_file_location('preclip_diag','/kaggle/working/preclip_diag.py')",
-            "_dmod=_ilu.module_from_spec(_dspec); _dspec.loader.exec_module(_dmod); preclip_diag=_dmod",
+        indent + line + "\n" for line in (
+            "import importlib.util as _dilu",
+            "_dspec=_dilu.spec_from_file_location('preclip_diag','/kaggle/working/preclip_diag.py')",
+            "_dmod=_dilu.module_from_spec(_dspec); _dspec.loader.exec_module(_dmod); preclip_diag=_dmod",
         )
     )
-    out = out[:loader_line_end] + diag_loader + out[loader_line_end:]
+    out = out[:line_start] + diag_loader + out[line_start:]
     diag_call = "if preclip_diag.wanted(s): preclip_diag.begin_separate(m, opt, lgx, lx, ly, tok, msk, tel_first, tel_second, selected, lam)"
     indent, line_start, _index = _indent_at(out, _BEGIN)
     out = out[:line_start] + indent + diag_call + "\n" + out[line_start:]

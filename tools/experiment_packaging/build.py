@@ -14,6 +14,7 @@ from pathlib import Path
 
 from expert_union import apply_expert_union, apply_replay_telemetry
 from expanded_rehearsal import apply_expanded_rehearsal
+from name_order import used_before_binding
 from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
 from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
 
@@ -198,6 +199,10 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
     for name, text in assets.items():
         if name.endswith(".py"):
             ast.parse(text)
+            # treatment.py binds `build` by exec() of the pinned corpus builder.
+            early = used_before_binding(text, predefined={"build"} if name == "treatment.py" else ())
+            if early:
+                raise ValueError(f"USE_BEFORE_BINDING {name} {early}")
     built = {
         "nbformat": 4,
         "nbformat_minor": 5,
