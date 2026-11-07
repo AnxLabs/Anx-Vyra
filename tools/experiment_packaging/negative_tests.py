@@ -13,6 +13,39 @@ from pathlib import Path
 from validate_package import validate
 
 
+CASES = {
+    "missing_dependency": ("BOOTSTRAP_ASSET_SET_MISMATCH", "missing"),
+    "corrupt_hash": ("BOOTSTRAP_CORRUPT entry.py", "corrupt"),
+    "wrong_path": ("missing dataset root anjorosimoaj/vyra-x-bundle", "path"),
+}
+
+
+def stage_negative_kernel(package, target, notebook_text):
+    """Copy every kernel companion, then write the mutated notebook.
+
+    The wrong-path notebook still reads rehearsal_Y72_40.pt before it reaches
+    the dataset mapping. Omitting that file fails with FileNotFoundError
+    instead of the dataset-root rejection.
+    """
+    source = Path(package) / "kernel"
+    dest = Path(target) / "kernel"
+    dest.mkdir(parents=True, exist_ok=True)
+    for item in sorted(source.iterdir()):
+        if item.name == "replay.ipynb":
+            continue
+        if not item.is_file():
+            raise ValueError("NEGATIVE_FIXTURE_UNEXPECTED " + item.name)
+        shutil.copy2(item, dest / item.name)
+    (dest / "replay.ipynb").write_text(notebook_text)
+    missing = [
+        item.name for item in source.iterdir()
+        if item.name != "replay.ipynb" and not (dest / item.name).is_file()
+    ]
+    if missing:
+        raise ValueError("NEGATIVE_FIXTURE_INCOMPLETE " + ",".join(missing))
+    return dest
+
+
 def run(package, inputs, work_root, logs, runtime):
     package = Path(package)
     inputs = Path(inputs)
@@ -21,11 +54,7 @@ def run(package, inputs, work_root, logs, runtime):
     logs.mkdir(parents=True, exist_ok=True)
     original = json.loads((package / "kernel" / "replay.ipynb").read_text())
     code = "".join(original["cells"][0]["source"])
-    cases = {
-        "missing_dependency": ("BOOTSTRAP_ASSET_SET_MISMATCH", "missing"),
-        "corrupt_hash": ("BOOTSTRAP_CORRUPT entry.py", "corrupt"),
-        "wrong_path": ("missing dataset root anjorosimoaj/vyra-x-bundle", "path"),
-    }
+    cases = CASES
     results = {}
     start = time.monotonic()
     for name, (message, kind) in cases.items():
@@ -54,11 +83,9 @@ def run(package, inputs, work_root, logs, runtime):
                         "/kaggle/input/datasets/anjorosimoaj/WRONG-X-PATH"
                     )
         target = work_root / name
-        (target / "kernel").mkdir(parents=True, exist_ok=True)
-        shutil.copy2(package / "kernel" / "kernel-metadata.json", target / "kernel" / "kernel-metadata.json")
         mutated = json.loads(json.dumps(original))
         mutated["cells"][0]["source"] = [ast.unparse(ast.fix_missing_locations(tree)) + "\n"]
-        (target / "kernel" / "replay.ipynb").write_text(json.dumps(mutated))
+        stage_negative_kernel(package, target, json.dumps(mutated))
         log = logs / ("negative_" + name + ".log")
         try:
             validate(target, inputs, target / "work", log, runtime)

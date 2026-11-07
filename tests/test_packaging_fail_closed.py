@@ -17,6 +17,7 @@ sys.path.insert(0, str(PACKAGING))
 from build import check_archives, prepare_treatment, require_builder  # noqa: E402
 from expert_union import apply_expert_union  # noqa: E402
 from launch_gate import main as launch_main  # noqa: E402
+from negative_tests import CASES, stage_negative_kernel  # noqa: E402
 from validate_package import command  # noqa: E402
 from verify_receipt import verify, write_receipt  # noqa: E402
 
@@ -139,6 +140,20 @@ def test_receipt_checker_rejects_a_changed_or_incomplete_file(tmp_path):
         verify(tmp_path)
     with pytest.raises(ValueError, match="Receipt required file missing"):
         verify(tmp_path / "does-not-exist")
+
+
+def test_wrong_path_fixture_keeps_every_kernel_companion(tmp_path):
+    package = tmp_path / "package"
+    kernel = package / "kernel"
+    kernel.mkdir(parents=True)
+    (kernel / "kernel-metadata.json").write_text('{"is_private": true}\n')
+    (kernel / "rehearsal_Y72_40.pt").write_bytes(b"synthetic-companion-not-the-real-artifact")
+    (kernel / "replay.ipynb").write_text("{}\n")
+    staged = stage_negative_kernel(package, tmp_path / "wrong_path", '{"cells":[{"source":["mutated"]}]}\n')
+    assert (staged / "rehearsal_Y72_40.pt").read_bytes() == b"synthetic-companion-not-the-real-artifact"
+    assert (staged / "kernel-metadata.json").is_file()
+    assert "synthetic-companion" not in (staged / "replay.ipynb").read_text()
+    assert CASES["wrong_path"] == ("missing dataset root anjorosimoaj/vyra-x-bundle", "path")
 
 
 def test_launch_gate_refuses_push_without_a_network_call(tmp_path):
