@@ -22,6 +22,29 @@ only forward.
 Scientific gates, loss coefficient, learning rate, and the optimizer algebra
 are not rewritten.
 
+## Telemetry
+
+The same rewrite stores the two selections and, after the existing clip and
+the existing step, records aggregated counters. It does not add a forward, a
+backward, or an optimizer step. Pinned `run_vyra1_copy` is still the library
+the caller imports.
+
+For every expert slice on every completed update the counters keep four facts
+apart: which forward selected it, whether the optimizer dict contained it,
+whether its post-clip gradient had a nonzero element, whether SliceAdam's
+per-expert clock increased, and whether the int64 sum of that slice's float32
+bit patterns changed. A clock increase is not proof the values changed. A
+changed bit-sum means at least one stored value changed. An unchanged bit-sum
+can hide two writes that cancel in the sum, so it is not proof of no write.
+Selection, clocks, and nonzero gradients cover every expert slice, not a
+sample. The bit-sum reads each expert slice before and after the step and does
+not keep a copy of the slice. Those reductions stay on device until `summary()`
+at the end of the arm. An earlier stop does not flush the gradient or bit-sum
+cross-tab.
+
+The CPU preflight exits before this loop, so a preflight receipt does not
+exercise the counters. `tests/test_expert_union_replay.py` does.
+
 ## Command
 
 Run this outside the repository. The target refuses an output path inside the

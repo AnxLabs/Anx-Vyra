@@ -18,7 +18,8 @@ PACKAGING = Path(__file__).resolve().parents[1] / "tools" / "experiment_packagin
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGING))
 
-from expert_union import apply_expert_union  # noqa: E402
+from expert_union import apply_expert_union, apply_replay_telemetry, apply_unrepaired_observation  # noqa: E402
+from replay_telemetry import ReplayTelemetry  # noqa: E402
 
 GREEN_DELTAS = {
     "e.gate": [2.2292137145996094e-05, 1.8775463104248047e-05, 1.7940998077392578e-05, 0.0],
@@ -113,6 +114,11 @@ def _caller_body(source):
             for child in ast.walk(node)
         )
     )
+    def _is_zero_grad(node):
+        call = node.value if isinstance(node, ast.Expr) else None
+        func = call.func if isinstance(call, ast.Call) else None
+        return isinstance(func, ast.Attribute) and func.attr == "zero_grad"
+
     body = []
     active = False
     for node in loop.body:
@@ -122,19 +128,19 @@ def _caller_body(source):
             for target in node.targets
         ):
             active = True
+        if active and _is_zero_grad(node):
+            break
         if active:
             body.append(node)
-        if (
-            active
-            and isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Attribute)
-            and isinstance(node.value.func.value, ast.Name)
-            and node.value.func.value.id == "opt"
-            and node.value.func.attr == "step"
-        ):
-            break
-    assert active and body[-1].value.func.attr == "step"
+    assert active and any(
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "opt"
+        and node.value.func.attr == "step"
+        for node in body
+    )
 
     class _CPU(ast.NodeTransformer):
         def visit_Constant(self, node):
@@ -206,8 +212,9 @@ def _execute(source, library):
     def stop(message):
         raise AssertionError(message)
 
+    telemetry = ReplayTelemetry(model, opt, max_steps=1)
     env = dict(
-        m=model, opt=opt, rv=library, torch=torch, math=math, ce=ce,
+        m=model, opt=opt, rv=library, torch=torch, math=math, ce=ce, tel=telemetry,
         batch_at=lambda _step: (primary, mask),
         replay_at=lambda _step: (replay, mask, [0]),
         stop=stop, s=0, lam=0.25, arm="regression",
@@ -281,6 +288,7 @@ def _execute(source, library):
         "clip_factor": coef,
         "max_Adam_reference_delta_error": max_error,
         "last_forward_selection": sorted(model.e._selected),
+        "telemetry": telemetry.summary(),
     }
     passed = all(
         values[0] > 0 and values[1] > 0 and values[2] > 0 and values[3:] == [0.0]
@@ -303,8 +311,11 @@ def test_replay_union_updates_first_only_experts_once():
     except RuntimeError:
         pass
     library = _library()
+    def category(report, name):
+        return report["telemetry"]["categories"][name]
+
     try:
-        _execute(CALLER, library)
+        _execute(apply_unrepaired_observation(CALLER), library)
     except AssertionError as exc:
         assert "UNION_REGRESSION" in str(exc)
         red = exc.report
@@ -314,7 +325,27 @@ def test_replay_union_updates_first_only_experts_once():
     assert all(values == RED_CLOCKS for values in red["per_expert_clock_increment"].values())
     assert all(values[0] == 0.0 and values[1] > 0 and values[3] == 0.0
                for values in red["per_expert_parameter_max_delta"].values())
-    green = _execute(apply_expert_union(CALLER), library)
+    assert red["telemetry"]["updates"] == 1
+    assert red["telemetry"]["union_mismatches"] == 3
+    assert red["telemetry"]["slots_per_update"] == 12
+    red_first = category(red, "first_only")
+    assert red_first["slots"] == 3
+    assert red_first["passed_to_optimizer"] == 0
+    assert red_first["nonzero_grad"] == 3
+    assert red_first["state_delta_0"] == 3
+    assert red_first["bitsum_changed"] == 0
+    assert red_first["nonzero_grad_no_state_step"] == 3
+    red_second = category(red, "second_only")
+    assert red_second["slots"] == 3 and red_second["passed_to_optimizer"] == 3
+    assert red_second["state_delta_1"] == 3 and red_second["bitsum_changed"] == 3
+    red_overlap = category(red, "overlap")
+    assert red_overlap["slots"] == 3 and red_overlap["state_delta_1"] == 3
+    assert red_overlap["state_delta_other"] == 0 and red_overlap["bitsum_changed"] == 3
+    red_idle = category(red, "unselected")
+    assert red_idle["slots"] == 3 and red_idle["passed_to_optimizer"] == 0
+    assert red_idle["nonzero_grad"] == 0 and red_idle["state_delta_0"] == 3
+    assert red_idle["bitsum_changed"] == 0
+    green = _execute(apply_replay_telemetry(apply_expert_union(CALLER), require_arm=False), library)
     assert green["pass"] is True
     assert green["last_forward_selection"] == [1, 2]
     assert green["per_expert_parameter_max_delta"] == GREEN_DELTAS
@@ -323,3 +354,21 @@ def test_replay_union_updates_first_only_experts_once():
     assert green["clip_factor"] == 0.03907597437500954
     assert green["max_Adam_reference_delta_error"] == 0.0
     assert abs(green["clipped_global_norm"] - 1.0) < 1e-6
+    assert green["telemetry"]["union_mismatches"] == 0
+    assert "not proof" in green["telemetry"]["semantics"]["state_delta"]
+    green_first = category(green, "first_only")
+    assert green_first["slots"] == 3 and green_first["passed_to_optimizer"] == 3
+    assert green_first["nonzero_grad_no_state_step"] == 0
+    assert green_first["state_delta_1"] == 3 and green_first["bitsum_changed"] == 3
+    assert green_first["state_step_bitsum_unchanged"] == 0
+    assert green_first["nonzero_grad_state_step_bitsum_changed"] == 3
+    green_second = category(green, "second_only")
+    assert green_second["slots"] == 3 and green_second["state_delta_1"] == 3
+    assert green_second["bitsum_changed"] == 3 and green_second["passed_to_optimizer"] == 3
+    green_overlap = category(green, "overlap")
+    assert green_overlap["slots"] == 3 and green_overlap["state_delta_1"] == 3
+    assert green_overlap["state_delta_other"] == 0 and green_overlap["bitsum_changed"] == 3
+    green_idle = category(green, "unselected")
+    assert green_idle["slots"] == 3 and green_idle["passed_to_optimizer"] == 0
+    assert green_idle["nonzero_grad"] == 0 and green_idle["state_delta_0"] == 3
+    assert green_idle["bitsum_changed"] == 0 and green_idle["no_state_step_bitsum_changed"] == 0

@@ -317,7 +317,9 @@ Stated plainly, because a research repository is only useful if its edges are vi
 - **A second forward drops the first expert selection.** `expert_selection` reports only the last
   forward, and SliceAdam updates only the dict it is given. Replay training that runs a second
   forward before the one step has to capture the first selection and union the second. Single-forward
-  training is unchanged. The packaged replay caller does that union; see `docs/PACKAGING.md`.
+  training is unchanged. The packaged replay caller does that union and records whether each expert
+  slice was selected, had a nonzero gradient, had its optimizer clock advanced, and had a stored
+  value change. A clock advance is not recorded as a value change. See `docs/PACKAGING.md`.
 
 ## Repository layout
 

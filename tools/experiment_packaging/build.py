@@ -12,7 +12,7 @@ import json
 import zipfile
 from pathlib import Path
 
-from expert_union import apply_expert_union
+from expert_union import apply_expert_union, apply_replay_telemetry
 
 BUILDER_SHA = "a34984d3aa60100cf282c3e98d8a55409ae6ed0fc0f543d93d9d0ba463e0b5cd"
 
@@ -113,6 +113,7 @@ def prepare_treatment(treatment, builder_text):
 """
     treatment = treatment.replace(before, init + before)
     treatment = apply_expert_union(treatment)
+    treatment = apply_replay_telemetry(treatment)
     return treatment, builder_text
 
 
@@ -143,6 +144,7 @@ def build(args):
     treatment, _builder = prepare_treatment(assets["treatment.py"], builder_text)
     assets["treatment.py"] = treatment
     assets["dependency_gate.py"] = Path(__file__).with_name("dependency_gate.py").read_text()
+    assets["replay_telemetry.py"] = Path(__file__).with_name("replay_telemetry.py").read_text()
     audit = json.loads(Path(args.archive_audit).read_text())
     datasets = check_archives(args.x_archive, args.y_archive, audit)
     lock = {
@@ -226,6 +228,7 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "assets": lock["assets"],
         "immutable_protocol_sha256": lock["assets"]["PROTOCOL.json"],
         "expert_union_applied": True,
+        "replay_telemetry_embedded": True,
         "no_scientific_gate_or_input_change": True,
         "no_submission": True,
         "real_input_validation": False,

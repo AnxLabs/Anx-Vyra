@@ -31,12 +31,17 @@ if not torch.cuda.is_available(): stop('GPU unavailable; no CPU fallback')
 def make():
     return m.to('cuda')
 BX/'make_corpus_X.py':'abc'
+opt=rv.make_optimizer(m); torch.cuda.reset_peak_memory_stats()
+for arm,lam in (('treatment',0.25),):
+    pass
 for s in range(STEPS):
     tok,msk=batch_at(s); tok=tok.to('cuda'); msk=msk.to('cuda'); lx=ce(m(tok),tok,msk); loss=lx; ly=None
     if lam: yt,ym,_=replay_at(s); yt=yt.to('cuda'); ym=ym.to('cuda'); ly=ce(m(yt),yt,ym); loss=lx+lam*ly
     loss.backward()
+    torch.nn.utils.clip_grad_norm_([p for p in m.parameters() if p.grad is not None],1.0)
     opt.step(rv.expert_selection(m)); m.zero_grad(set_to_none=True)
   m=make(); t=time.time(); R['baseline']=eval_block(m);
+A['replay_extra_note']='treatment adds 2-row replay CE+backward each update; equal updates != equal compute'
 """
 
 
@@ -63,6 +68,11 @@ def test_prepare_treatment_keeps_preflight_and_applies_union_once():
     assert "opt.step(selected)" in patched
     assert "opt.step(rv.expert_selection(" not in patched
     assert "Path('/kaggle/working/make_corpus_X.py'):" in patched
+    assert "tel.begin_update(m, opt)" in patched
+    assert "tel.note_grads(m)" in patched
+    assert "tel.finish_update(m, opt, tel_first, tel_second, selected)" in patched
+    assert "A['expert_telemetry']=tel.summary()" in patched
+    assert "replay_telemetry.py" in patched
     with pytest.raises(ValueError, match="TREATMENT_BUILDER_PIN_MISSING"):
         prepare_treatment(patched, "builder-text")
 
