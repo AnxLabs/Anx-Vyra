@@ -196,15 +196,142 @@ def test_device_gate(tmp_path):
     # smoke flag but asking for cuda: refused
     with pytest.raises(cont.ContinuationGateError, match="DEVICE_MISMATCH"):
         _load(p, sha, n, device="cuda", cpu_smoke=True)
-    # device-count rule with a faked cuda module: saved 2 states, 1 visible device
-    w = World(1)
     ck = _v1(src)
-    fake = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 1))
-    fake_params = SimpleNamespace(parameters=lambda: [SimpleNamespace(device=SimpleNamespace(type="cuda"))])
+    assert cont.check_device(_params(), ck, device="cuda", torch_mod=_cuda(2))["device_count"] == 2   # accepted shape
+
+
+def _cuda(n, names=None, available=True):
+    names = names if names is not None else ["Tesla T4"] * n
+    return SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: available, device_count=lambda: n,
+                                                get_device_name=lambda i: names[i]))
+
+
+def _params(*devs):
+    devs = devs or (("cuda", 0),)
+    return SimpleNamespace(parameters=lambda: [SimpleNamespace(device=SimpleNamespace(type=t, index=i)) for t, i in devs])
+
+
+def test_accelerator_constants_match_the_original_run():
+    assert cont.MACHINE_SHAPE == "NvidiaTeslaT4" and cont.REQUIRED_CUDA_DEVICES == 2
+    assert cont.REQUIRED_GPU_NAME == "Tesla T4" and cont.TRAINING_CUDA_DEVICE == 0
+    assert "accelerator" in cont.DISCLOSURE and "cuda:0 only" in cont.DISCLOSURE["accelerator"]["training_device"]
+
+
+def test_device_gate_accepts_exactly_two_t4_and_records_what_it_saw():
+    src = World(5)
+    ck = _v1(src)
+    rec = cont.check_device(_params(), ck, device="cuda", torch_mod=_cuda(2))
+    assert rec == {"mode": "cuda", "device_count": 2, "device_names": ["Tesla T4", "Tesla T4"], "training_device": "cuda:0",
+                   "cuda_rng_restored": True, "saved_cuda_states_identical": True}
+    ck["cuda_rng"][1] = torch.ones(16, dtype=torch.uint8)
+    assert cont.check_device(_params(), ck, device="cuda", torch_mod=_cuda(2))["saved_cuda_states_identical"] is False
+    assert cont.check_device(_params(("cuda", None)), ck, device="cuda", torch_mod=_cuda(2))["training_device"] == "cuda:0"
+
+
+@pytest.mark.parametrize("label, params, fake, nsaved", [
+    ("one visible device", _params(), _cuda(1), 2),
+    ("three visible devices", _params(), _cuda(3), 2),
+    ("zero visible devices", _params(), _cuda(0), 2),
+    ("cuda unavailable", _params(), _cuda(2, available=False), 2),
+    ("a P100 among the devices", _params(), _cuda(2, ["Tesla T4", "Tesla P100-PCIE-16GB"]), 2),
+    ("both not T4", _params(), _cuda(2, ["NVIDIA L4", "NVIDIA L4"]), 2),
+    ("params on cuda:1", _params(("cuda", 1)), _cuda(2), 2),
+    ("params split over cuda:0 and cuda:1", _params(("cuda", 0), ("cuda", 1)), _cuda(2), 2),
+    ("params on cpu", _params(("cpu", None)), _cuda(2), 2),
+    ("params mixed cpu and cuda", _params(("cuda", 0), ("cpu", None)), _cuda(2), 2),
+    ("saved states != visible (1 saved, 2 visible)", _params(), _cuda(2), 1),
+    ("saved states != visible (3 saved, 3 visible, but 2 required)", _params(), _cuda(3), 3),
+])
+def test_device_gate_negative_cases(label, params, fake, nsaved):
+    ck = _v1(World(5))
+    ck["cuda_rng"] = [torch.zeros(16, dtype=torch.uint8) for _ in range(nsaved)]
     with pytest.raises(cont.ContinuationGateError, match="DEVICE_MISMATCH"):
-        cont.check_device(fake_params, ck, device="cuda", torch_mod=fake)
-    fake2 = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 2))
-    assert cont.check_device(fake_params, ck, device="cuda", torch_mod=fake2)["device_count"] == 2
+        cont.check_device(params, ck, device="cuda", torch_mod=fake)
+
+
+def test_device_gate_missing_cuda_rng_and_wrong_device_string():
+    ck = _v1(World(5), cuda=False)
+    with pytest.raises(cont.ContinuationGateError, match="DEVICE_MISMATCH"):
+        cont.check_device(_params(), ck, device="cuda", torch_mod=_cuda(2))
+    with pytest.raises(cont.ContinuationGateError, match="DEVICE_MISMATCH"):
+        cont.check_device(_params(), _v1(World(5)), device="cpu", torch_mod=_cuda(2))
+
+
+# ---- restoration check at update 200 ---------------------------------------------------------------------
+def _derived(name):
+    e = cont.BASELINE_200_EVAL[name]
+    t = [k for k in range(e["tokens"] + 1) if round(k / e["tokens"], 4) == e["token_acc"]]
+    r = [k for k in range(e["records"] + 1) if round(k / e["records"], 4) == e["record_exact"]]
+    return t, r
+
+
+def test_baseline_counts_are_the_unique_integers_behind_the_recorded_evals():
+    for name, want in cont.BASELINE_200_COUNTS.items():
+        t, r = _derived(name)
+        assert t == [want["tokens_correct"]] and r == [want["segments_exact"]], name
+        assert want["tokens"] == cont.BASELINE_200_EVAL[name]["tokens"] and want["segments"] == cont.BASELINE_200_EVAL[name]["records"]
+    import stop_rule
+    assert cont.BASELINE_200_COUNTS["X64_unseen"]["tokens_correct"] == stop_rule.BASELINE_X64["heldout"]["tokens_correct"] == 257
+    assert stop_rule.BASELINE_X64["train"]["tokens_correct"] == 669 and cont.RESTORATION_TOLERANCE_TOKENS == 0
+
+
+class _X(SimpleNamespace):
+    pass
+
+
+def _xck(sha=None):
+    return _X(_state_sha=lambda m: sha or cont.BASELINE_200_MODEL_STATE_SHA256)
+
+
+def _counts():
+    return {k: dict(v) for k, v in cont.BASELINE_200_COUNTS.items()}
+
+
+def _x64():
+    import stop_rule
+    return {k: dict(v) for k, v in stop_rule.BASELINE_X64.items()}
+
+
+def _check(sha=None, counts=None, x64=None, strict=True, rounded=None):
+    import stop_rule
+    return cont.check_baseline_restoration(None, x64 or _x64(), counts or _counts(), rounded or cont.BASELINE_200_EVAL,
+                                           strict=strict, x64_ck=_xck(sha), baseline_x64=stop_rule.BASELINE_X64)
+
+
+def test_restoration_check_passes_on_exact_counts():
+    rec = _check()
+    assert rec["model_state_matches"] and rec["x64_counts_match"] and rec["eval_counts_match"] and rec["eval_rounded_match"]
+    assert rec["tolerance_tokens"] == 0
+
+
+def test_restoration_check_param_hash_is_always_fatal_even_non_strict():
+    for strict in (True, False):
+        with pytest.raises(cont.ContinuationGateError, match="RESTORE_CHECK"):
+            _check(sha="0" * 64, strict=strict)
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda c, x: x["heldout"].__setitem__("tokens_correct", 258),
+    lambda c, x: x["heldout"].__setitem__("tokens_correct", 256),
+    lambda c, x: x["train"].__setitem__("tokens_correct", 670),
+    lambda c, x: x["train"].__setitem__("tokens_correct", 668),
+    lambda c, x: x["heldout"].__setitem__("segments_exact", 1),
+    lambda c, x: x["train"].__setitem__("segments_exact", 1),
+    lambda c, x: c["Y72_unseen"].__setitem__("tokens_correct", 1562),
+    lambda c, x: c["Y72_unseen"].__setitem__("segments_exact", 164),
+    lambda c, x: c["X32_unseen"].__setitem__("tokens_correct", 2376),
+    lambda c, x: c["X109_unseen"].__setitem__("segments_exact", 81),
+    lambda c, x: c["X64_unseen"].__setitem__("tokens_correct", 258),
+    lambda c, x: c.pop("X109_unseen"),
+])
+def test_restoration_check_is_exact_one_off_counts_stop_a_strict_run(mutate):
+    c, x = _counts(), _x64()
+    mutate(c, x)
+    with pytest.raises(cont.ContinuationGateError, match="RESTORE_CHECK"):
+        _check(counts=c, x64=x, strict=True)
+    rec = _check(counts=c, x64=x, strict=False)         # CPU smoke records, never stops
+    assert not (rec["x64_counts_match"] and rec["eval_counts_match"])
+    assert rec["x64_counts_diff"] or rec["eval_counts_diff"]
 
 
 def test_invalid_pickle_content_is_refused_by_weights_only(tmp_path):
@@ -216,3 +343,31 @@ def test_invalid_pickle_content_is_refused_by_weights_only(tmp_path):
     raw = p.read_bytes()
     with pytest.raises(Exception):
         _load(p, hashlib.sha256(raw).hexdigest(), len(raw))
+
+
+def test_committed_restoration_prereg_matches_the_code():
+    import json
+    import stop_rule
+    reg = json.loads((Path(__file__).resolve().parents[1] / "prereg" / "restoration_check_200.json").read_text())
+    exact = reg["gpu_recomputed_counts_must_equal_exactly"]
+    assert exact["x64_heldout"] == stop_rule.BASELINE_X64["heldout"] and exact["x64_train"] == stop_rule.BASELINE_X64["train"]
+    for k, v in exact["retention_counts"].items():
+        assert v == cont.BASELINE_200_COUNTS[k]
+    assert reg["always_fatal_hardware_independent"]["model_state_sha256"] == cont.BASELINE_200_MODEL_STATE_SHA256
+    assert reg["always_fatal_hardware_independent"]["also"][-1].endswith("c3ac1155e0e21b25133d7e76aa63589a98e53d3e80ee3b0c645daa3fcd365ae7")
+    assert exact["tolerance"].startswith("0 tokens") and cont.RESTORATION_TOLERANCE_TOKENS == 0
+
+
+def test_restore_v1_applies_every_saved_cuda_state_when_the_gate_says_so(monkeypatch):
+    w = World(1)
+    ck = _v1(World(5))
+    ck["model"] = {k: v.clone() for k, v in w.model.state_dict().items()}
+    ck["optimizer"] = {n: {"step": 0, "exp_avg": torch.zeros_like(p), "exp_avg_sq": torch.zeros_like(p), "expert_steps": None}
+                       for n, p in w.model.named_parameters()}
+    seen = {}
+    monkeypatch.setattr(torch.cuda, "set_rng_state_all", lambda states: seen.setdefault("states", [s.clone() for s in states]))
+    cont.restore_v1(w.model, w.opt, ck, device="cpu", cuda_restore=True)
+    assert len(seen["states"]) == 2 and all(torch.equal(a, b) for a, b in zip(seen["states"], ck["cuda_rng"]))
+    seen.clear()
+    cont.restore_v1(w.model, w.opt, ck, device="cpu", cuda_restore=False)
+    assert "states" not in seen

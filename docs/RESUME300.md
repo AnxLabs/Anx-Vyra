@@ -42,10 +42,23 @@ records that disclosure in `result.json`. New checkpoints capture all of it.
 path before `torch.load`, then loads the verified bytes with
 `weights_only=True`, and refuses on: missing file, wrong path, symlink or
 directory, hash/size, schema, update != 200, optimizer class or name mismatch,
-plan-prefix mismatch, device mismatch (CUDA only, device count equal to the
-saved CUDA RNG count). No discovery, no retry, no restart. After restoring,
-the parameter hash must equal the recorded update-200 model-state hash and,
-on the T4, the update-200 evals and X64 counts must reproduce.
+plan-prefix mismatch, device mismatch. No discovery, no retry, no restart.
+
+### Accelerator
+The 200-update run requested `machine_shape: "NvidiaTeslaT4"` (Kaggle CLI 2.2.5
+help: "GPU T4 x2"; the CLI passes the field through and the server decides) and
+saw 2 x Tesla T4, but `treatment.py` only ever uses `cuda` == `cuda:0`. The
+continuation requests the same shape and keeps the two-device gate: exactly 2
+visible CUDA devices (equal to the 2 saved CUDA RNG states), all `Tesla T4`,
+every parameter on `cuda:0`. The saved `cuda:1` RNG state is byte-identical to
+`cuda:0`'s (seed 0, offset 0, never consumed), restored and inert.
+
+### Restoration check (pre-registered, `prereg/restoration_check_200.json`)
+After restore, before any training step: parameter sha256 must equal the
+recorded update-200 hash (always fatal) and the recomputed integer counts must
+equal the recorded ones exactly (zero tolerance): X64 held-out 257/1920 and
+train 669/1920 with segment-exact 0/0, and the Y72/X32/X109 integer counts. The
+CPU smoke records the same comparisons without stopping.
 
 ## Observers
 
@@ -54,10 +67,15 @@ Eval, rehearsal readout, the X64 dump and the checkpoint capture run inside
 route metadata and module modes and verifies params, grads and optimizer state
 are bit-identical on exit; a write raises and stops the run.
 
-## Stop rule
+## Stop rule (pre-registered, `prereg/stop_rule_300.{json,md}`)
 
-`stop_rule.py` encodes the pre-registered rule with integer arithmetic only.
-The run always ends at 300. It never starts a follow-up.
+One rule, integer arithmetic only, evaluated by `stop_rule.py`:
+STUCK at 300 iff X64 train and held-out segment-exact counts are both 0 AND
+(held-out token acc(300) - acc(200) < 10.0 pp OR train token acc(300) - acc(250)
+< 3.0 pp), strict `<`. SLOW-LEARNER evidence iff at any of 225/250/275/300 the
+X64 held-out segment-exact > 0 and same-checkpoint Y72 segment-exact >= 80.0%.
+RETENTION FAILURE iff Y72 < 80.0% at any checkpoint (blocks any success claim).
+Otherwise INCONCLUSIVE. Training always stops at 300.
 
 ## Tests
 

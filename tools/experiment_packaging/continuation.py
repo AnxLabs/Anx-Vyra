@@ -29,6 +29,12 @@ CKPT200_DATASET_ID = "anjorosimoaj/vyra-expanded40-200u-checkpoint"
 CKPT200_MOUNT = "/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint"
 CKPT200_PATH = CKPT200_MOUNT + "/checkpoint_200.pt"
 RESUME_UPDATE = 200
+# Accelerator of the 200-update run (kernel metadata machine_shape "NvidiaTeslaT4" == "GPU T4 x2" in the Kaggle
+# CLI help; result.json gpu = 2 x Tesla T4, active_device 0; treatment.py only ever moves tensors to 'cuda' == cuda:0).
+MACHINE_SHAPE = "NvidiaTeslaT4"
+REQUIRED_CUDA_DEVICES = 2
+REQUIRED_GPU_NAME = "Tesla T4"
+TRAINING_CUDA_DEVICE = 0
 FINAL_UPDATE = 300
 CHECKPOINT_UPDATES = (225, 250, 275, 300)
 V1_KEYS = ("update", "model", "optimizer", "torch_rng", "cuda_rng")
@@ -80,6 +86,12 @@ DISCLOSURE = {
             "was": "not saved",
             "now": "train() at the start of every update, as in the original loop; eval() only inside observers, restored afterward",
         },
+    },
+    "accelerator": {
+        "requested": f'kernel-metadata.json machine_shape "{MACHINE_SHAPE}" (Kaggle CLI 2.2.5: "GPU T4 x2"), identical to the 200-update run; the server decides the real allocation',
+        "gate": f"fail closed unless exactly {REQUIRED_CUDA_DEVICES} visible CUDA devices (== the saved CUDA RNG states), all named {REQUIRED_GPU_NAME!r}, parameters on cuda:{TRAINING_CUDA_DEVICE}",
+        "training_device": f"cuda:{TRAINING_CUDA_DEVICE} only (treatment.py moves everything to 'cuda'); cuda:1 is never used",
+        "cuda_device_1_rng": "restored with the rest but inert: the saved cuda:1 state is byte-identical to cuda:0's (seed 0, offset 0, never consumed)",
     },
     "new_checkpoints_225_250_275_300_capture": list(V2_REQUIRED),
 }
@@ -329,20 +341,36 @@ def validate_v1_schema(ck, model, opt, *, expected_update=RESUME_UPDATE, cuda_re
 
 
 def check_device(model, ck, *, device, cpu_smoke=False, torch_mod=torch):
-    """Device gate: must be CUDA with the saved device count, unless the explicit CPU smoke flag is set."""
-    on = {p.device.type for p in model.parameters()}
+    """Device gate (fail closed).
+
+    Real run: CUDA only; every parameter on cuda:0 (the only device the 200-update
+    run trained on); exactly REQUIRED_CUDA_DEVICES visible devices, equal to the
+    number of saved CUDA RNG states; every visible device a Tesla T4. The CPU smoke
+    is the explicit test-only opt-in.
+    """
+    devs = {(p.device.type, getattr(p.device, "index", None)) for p in model.parameters()}
     if cpu_smoke:
-        if device != "cpu" or on != {"cpu"}:
-            _fail("DEVICE_MISMATCH", f"cpu smoke but device={device} params on {sorted(on)}")
+        if device != "cpu" or {t for t, _ in devs} != {"cpu"}:
+            _fail("DEVICE_MISMATCH", f"cpu smoke but device={device} params on {sorted(map(str, devs))}")
         return {"mode": "cpu_smoke", "cuda_rng_restored": False}
-    if device != "cuda" or on != {"cuda"}:
-        _fail("DEVICE_MISMATCH", f"need cuda, device={device} params on {sorted(on)}")
+    if device != "cuda" or {t for t, _ in devs} != {"cuda"}:
+        _fail("DEVICE_MISMATCH", f"need cuda, device={device} params on {sorted(map(str, devs))}")
+    if any(i not in (None, TRAINING_CUDA_DEVICE) for _, i in devs):
+        _fail("DEVICE_MISMATCH", f"parameters must live on cuda:{TRAINING_CUDA_DEVICE} only, found {sorted(map(str, devs))}")
     if not torch_mod.cuda.is_available():
         _fail("DEVICE_MISMATCH", "cuda unavailable")
     saved = ck["cuda_rng"]
-    if saved is None or torch_mod.cuda.device_count() != len(saved):
-        _fail("DEVICE_MISMATCH", f"visible cuda devices {torch_mod.cuda.device_count()} != saved cuda_rng states {None if saved is None else len(saved)}")
-    return {"mode": "cuda", "device_count": len(saved), "cuda_rng_restored": True}
+    n = torch_mod.cuda.device_count()
+    if saved is None or n != len(saved):
+        _fail("DEVICE_MISMATCH", f"visible cuda devices {n} != saved cuda_rng states {None if saved is None else len(saved)}")
+    if n != REQUIRED_CUDA_DEVICES:
+        _fail("DEVICE_MISMATCH", f"visible cuda devices {n} != required {REQUIRED_CUDA_DEVICES} (T4 x2, as the 200-update run saw)")
+    names = [torch_mod.cuda.get_device_name(i) for i in range(n)]
+    if any(nm != REQUIRED_GPU_NAME for nm in names):
+        _fail("DEVICE_MISMATCH", f"every device must be {REQUIRED_GPU_NAME!r}, got {names}")
+    identical = all(bool(torch.equal(saved[0], t)) for t in saved[1:])
+    return {"mode": "cuda", "device_count": n, "device_names": names, "training_device": f"cuda:{TRAINING_CUDA_DEVICE}",
+            "cuda_rng_restored": True, "saved_cuda_states_identical": identical}
 
 
 def check_plan_prefix(plan, *, plan_module, resume_update=RESUME_UPDATE):
@@ -553,6 +581,16 @@ BASELINE_200_EVAL = {
     "X64_unseen": {"token_acc": 0.1339, "record_exact": 0.0, "tokens": 1920, "records": 240},
     "X109_unseen": {"token_acc": 0.9458, "record_exact": 0.6667, "tokens": 960, "records": 120},
 }
+# Exact integer counts behind those 4-decimal values (each is the UNIQUE integer consistent with the rounded
+# value; tests/test_continuation_gates.py re-derives and checks that). Held-out X64 257/1920 matches the
+# pinned x64 baseline. Pre-registered restoration check: prereg/restoration_check_200.json.
+BASELINE_200_COUNTS = {
+    "Y72_unseen": {"tokens_correct": 1561, "tokens": 1600, "segments_exact": 165, "segments": 200},
+    "X32_unseen": {"tokens_correct": 2377, "tokens": 2560, "segments_exact": 173, "segments": 320},
+    "X64_unseen": {"tokens_correct": 257, "tokens": 1920, "segments_exact": 0, "segments": 240},
+    "X109_unseen": {"tokens_correct": 908, "tokens": 960, "segments_exact": 80, "segments": 120},
+}
+RESTORATION_TOLERANCE_TOKENS = 0     # exact integers; see prereg/restoration_check_200.json for why no tolerance is needed
 
 
 def observe_counts(model, *, XD, HO, EV, plan, update, device, x64_ck):
@@ -577,23 +615,41 @@ def observe_counts(model, *, XD, HO, EV, plan, update, device, x64_ck):
     return train, held, counts, x64
 
 
-def check_baseline_restoration(model, x64, eval_rounded, *, strict, x64_ck, baseline_x64):
+def check_baseline_restoration(model, x64, counts, eval_rounded, *, strict, x64_ck, baseline_x64):
     """After restore, the model must reproduce the recorded update-200 measurements.
 
-    The parameter sha256 is hardware independent and always fatal. The eval
-    comparisons depend on the device's argmax and are fatal only when `strict`
-    (the real T4 run); the CPU smoke records them.
+    Pre-registered (prereg/restoration_check_200.json), zero tolerance:
+      always fatal   : parameter sha256 == BASELINE_200_MODEL_STATE_SHA256 (hardware independent)
+      fatal if strict: X64 held-out tokens_correct == 257, train == 669, both segments_exact == 0
+                       (same totals 1920/240), AND the integer counts of Y72/X32/X64/X109 equal
+                       BASELINE_200_COUNTS exactly. `strict` is False only in the CPU smoke, which
+                       records the same comparisons without stopping.
+    The 4-decimal eval is recorded as a cross-check only.
     """
     sha = x64_ck._state_sha(model)
     rec = {"model_state_sha256": sha, "model_state_matches": sha == BASELINE_200_MODEL_STATE_SHA256}
     if not rec["model_state_matches"]:
         _fail("RESTORE_CHECK", f"model_state_sha256 {sha} != {BASELINE_200_MODEL_STATE_SHA256}")
-    rec["x64_counts_match"] = all(
-        x64[k]["tokens_correct"] == baseline_x64[k]["tokens_correct"] and x64[k]["segments_exact"] == baseline_x64[k]["segments_exact"]
-        for k in ("train", "heldout"))
+    tol = RESTORATION_TOLERANCE_TOKENS
+    keys = ("tokens_correct", "tokens", "segments_exact", "segments")
+    x64_diff = {k: {f: [x64[k][f], baseline_x64[k][f]] for f in keys if abs(x64[k][f] - baseline_x64[k][f]) > (tol if f == "tokens_correct" else 0)}
+                for k in ("train", "heldout")}
+    x64_diff = {k: v for k, v in x64_diff.items() if v}
+    cnt_diff = {}
+    for name, want in BASELINE_200_COUNTS.items():
+        got = counts.get(name)
+        d = {f: [None if got is None else got[f], want[f]] for f in keys
+             if got is None or abs(got[f] - want[f]) > (tol if f == "tokens_correct" else 0)}
+        if d:
+            cnt_diff[name] = d
+    rec["x64_counts_match"] = not x64_diff
+    rec["x64_counts_diff"] = x64_diff
+    rec["eval_counts_match"] = not cnt_diff
+    rec["eval_counts_diff"] = cnt_diff
     rec["eval_rounded_match"] = eval_rounded == BASELINE_200_EVAL
-    if strict and not (rec["x64_counts_match"] and rec["eval_rounded_match"]):
-        _fail("RESTORE_CHECK", f"restored model does not reproduce recorded update-200 evals: {rec}")
+    rec["tolerance_tokens"] = tol
+    if strict and (x64_diff or cnt_diff):
+        _fail("RESTORE_CHECK", f"restored model does not reproduce the recorded update-200 integer counts: x64_diff={x64_diff} eval_diff={cnt_diff}")
     return rec
 
 

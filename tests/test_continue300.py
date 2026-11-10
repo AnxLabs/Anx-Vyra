@@ -94,4 +94,10 @@ def test_built_continuation_notebook():
     assert code.rindex("verify_lock()") < code.index("launch_gpu('/kaggle/working/timeout_status.json'")
     meta = json.loads((nb.parent / "kernel-metadata.json").read_text())
     assert meta["is_private"] is True and meta["enable_internet"] is False and meta["enable_gpu"] is True
+    assert meta["machine_shape"] == cont.MACHINE_SHAPE == "NvidiaTeslaT4"
+    orig = Path("/workspace/vera/expanded40-200u-run-20261107/actual_submitted/kernel-metadata.json")
+    if orig.is_file():                                   # the accelerator request equals the original 200-update run's
+        assert json.loads(orig.read_text())["machine_shape"] == meta["machine_shape"]
+    assert "cont.check_baseline_restoration(m, _bx, _bc, R['baseline']" in assets["treatment.py"]
+    assert "AMBIGUOUS" not in assets["stop_rule.py"] and "INCONCLUSIVE" in assets["stop_rule.py"]
     assert meta["dataset_sources"] == ["anjorosimoaj/vyra-x-bundle", "anjorosimoaj/vyra-y-bundle", "anjorosimoaj/vyra-expanded40-200u-checkpoint"]

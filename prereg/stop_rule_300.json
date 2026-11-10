@@ -1,0 +1,43 @@
+{
+  "rule_id": "vyra-stop-rule-300-v1",
+  "status": "pre-registered before any update 201..300 data from the real (GPU) run existed",
+  "registered_by": "FORGE, from AJ's 'fix everything' instruction relayed by VERA on Nov 10 2026 (UTC-6)",
+  "reading_note": "FORGE chose this reading of the original wording: the exact-0 segment condition gates BOTH gain clauses. The earlier dual-reading/ambiguous path was removed.",
+  "data": {
+    "benchmark": "X64 teacher-forced masked-byte readout, two splits: train (40 rows) and held-out (40 unseen rows)",
+    "tokens_per_split": 1920,
+    "segments_per_split": 240,
+    "retention_probe": "Y72_unseen, 200 segments (records), 1600 tokens",
+    "checkpoints": [225, 250, 275, 300],
+    "baseline_update": 200,
+    "baseline_counts": {
+      "heldout": {"tokens_correct": 257, "tokens": 1920, "segments_exact": 0, "segments": 240},
+      "train": {"tokens_correct": 669, "tokens": 1920, "segments_exact": 0, "segments": 240}
+    }
+  },
+  "arithmetic": {
+    "token_acc_pct": "tokens_correct / tokens * 100, evaluated only through exact integer cross-multiplication; no float, no rounding",
+    "gain_clause_operator": "strict <",
+    "y72_floor_operator": ">=",
+    "y72_floor_pct": "80.0"
+  },
+  "STUCK": {
+    "evaluated_at_update": 300,
+    "iff": "(X64 train segments_exact(300) == 0 AND X64 held-out segments_exact(300) == 0) AND (heldout_token_acc(300) - heldout_token_acc(200) < 10.0 pp OR train_token_acc(300) - train_token_acc(250) < 3.0 pp)",
+    "heldout_gain_threshold_pp": "10.0",
+    "heldout_gain_pair": ["update 300 held-out tokens_correct/1920", "update 200 held-out 257/1920"],
+    "train_gain_threshold_pp": "3.0",
+    "train_gain_pair": ["update 300 train tokens_correct/1920", "update 250 train tokens_correct/1920 (measured in the same run)"]
+  },
+  "SLOW_LEARNER_EVIDENCE": {
+    "iff": "at ANY of 225/250/275/300: X64 held-out segments_exact > 0 AND Y72 segments_exact at that same checkpoint >= 80.0% (>= 160/200)"
+  },
+  "RETENTION_FAILURE": {
+    "iff": "Y72 segments_exact < 80.0% (< 160/200) at ANY of 225/250/275/300",
+    "effect": "blocks any success claim (success_claim_allowed = false)"
+  },
+  "verdict": "STUCK if the STUCK condition holds, otherwise INCONCLUSIVE. SLOW_LEARNER_EVIDENCE and RETENTION_FAILURE are separate flags reported alongside the verdict.",
+  "training": "always stops at update 300 regardless of verdict; no automatic follow-up, no threshold relaxation",
+  "separate": "the original scientific joint gates remain separate and unchanged",
+  "implementation": "tools/experiment_packaging/stop_rule.py (pinned to this file by tests/test_stop_rule.py)"
+}

@@ -69,7 +69,7 @@ _BASE_NEW = (
     "      _bt,_bh,_bc,_bx=cont.observe_counts(m, XD=XD, HO=HO, EV=EV, plan=SX['plan'], update=START, device=DEVICE, x64_ck=x64_checkpoint)\n"
     "  R['baseline_eval_s']=time.time()-t\n"
     "  try:\n"
-    "      R['restoration_check']=cont.check_baseline_restoration(m, _bx, R['baseline'], strict=not CPU_SMOKE, x64_ck=x64_checkpoint, baseline_x64=stop_rule.BASELINE_X64)\n"
+    "      R['restoration_check']=cont.check_baseline_restoration(m, _bx, _bc, R['baseline'], strict=not CPU_SMOKE, x64_ck=x64_checkpoint, baseline_x64=stop_rule.BASELINE_X64)\n"
     "  except cont.ContinuationGateError as _ge: stop('CONTINUATION_GATE '+str(_ge))\n"
     "  HIST={START:{'x64':_bx,'counts':_bc}}\n"
     "  PROV={'resumed_from_sha256':cont.CKPT200_SHA256,'resumed_from_update':START,'plan':R['plan_extension'],'treatment_sha256':R['hashes']['treatment.py'],'continuation_sha256':hashlib.sha256(Path('/kaggle/working/continuation.py').read_bytes()).hexdigest(),'disclosure_declared_in':'continuation.DISCLOSURE'}\n"

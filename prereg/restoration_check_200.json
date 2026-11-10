@@ -1,0 +1,24 @@
+{
+  "check_id": "vyra-restoration-check-200-v1",
+  "status": "pre-registered before any GPU recomputation of the restored update-200 model",
+  "when": "after load_checkpoint200 and before the first training step; a failure stops the run with CONTINUATION_GATE RESTORE_CHECK, no retry",
+  "always_fatal_hardware_independent": {
+    "model_state_sha256": "35bd2f486abf383965b93ffe08ff5db38e0873a6874bb039c3a188c30b2a0b34",
+    "also": ["checkpoint file sha256/size before torch.load", "strict load_state_dict", "optimizer name/state keys and shapes", "plan prefix sha256 c3ac1155e0e21b25133d7e76aa63589a98e53d3e80ee3b0c645daa3fcd365ae7"]
+  },
+  "gpu_recomputed_counts_must_equal_exactly": {
+    "tolerance": "0 tokens, 0 segments (exact integers)",
+    "x64_heldout": {"tokens_correct": 257, "tokens": 1920, "segments_exact": 0, "segments": 240},
+    "x64_train": {"tokens_correct": 669, "tokens": 1920, "segments_exact": 0, "segments": 240},
+    "retention_counts": {
+      "Y72_unseen": {"tokens_correct": 1561, "tokens": 1600, "segments_exact": 165, "segments": 200},
+      "X32_unseen": {"tokens_correct": 2377, "tokens": 2560, "segments_exact": 173, "segments": 320},
+      "X109_unseen": {"tokens_correct": 908, "tokens": 960, "segments_exact": 80, "segments": 120}
+    },
+    "derivation": "each retention integer is the unique integer consistent with the 4-decimal value recorded by the 200-update run (checked by a test)"
+  },
+  "why_no_tolerance": "The recomputation is a teacher-forced argmax over 1920+1920+... tokens. Evidence it is not brittle: on Nov 10 2026 a CPU recomputation of the restored real checkpoint (different hardware, different kernels) reproduced X64 257/669 and all four recorded evals exactly (logs/cpu_smoke_result.json restoration_check). The GPU run uses the same T4 class and torch build as the run that recorded them.",
+  "if_it_stops": "The stop happens before any training step and the observed counts are written to result.json; this is a restoration/hardware question for AJ, not something to retry or relax automatically. Any tolerance would need a new pre-registration.",
+  "cpu_smoke": "records the same comparisons without stopping (strict=false); the parameter hash stays fatal",
+  "implementation": "tools/experiment_packaging/continuation.py check_baseline_restoration, BASELINE_200_COUNTS (pinned by tests/test_continuation_gates.py)"
+}
