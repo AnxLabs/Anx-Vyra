@@ -1,0 +1,58 @@
+{
+  "rule_id": "vyra-pertask-clip-v1",
+  "status": "SPECIFICATION ONLY - pre-registered by FORGE (Grok Bot) before any update 226..300 with a per-task clip exists. No notebook is built. NOT approved to build or run.",
+  "registered_by": "FORGE (Grok Bot), CPU-only noise-floor / shared-clip study of Nov 10 2026 (AJ's go via VERA card t600s2463, 12:32 America/Edmonton, UTC-6)",
+  "evidence": "/workspace/forge/vyra-noise-clip-study-20261110/REPORT.md (diag/noise_floor.json, diag/clip_analysis.json, diag/step_probe_*.json, diag/gate_design.json)",
+  "question": "Does clipping each task's gradient separately (X at 0.5, lambda*Y at 0.5) instead of one global clip at 1.0 keep Y72 held-out segment-exact at a mean of at least 80.0% over checkpoints 250/275/300 while X64 held-out acquisition continues?",
+  "design": {
+    "only_variable": "gradient combination: global clip 1.0 on (gx + 0.25*gy)  ->  per-task clip tau=0.5 on gx and on 0.25*gy, summed (combined norm <= 1.0 by the triangle inequality)",
+    "task_clip_tau": 0.5,
+    "replay_lambda": 0.25,
+    "resume_from": {"update": 225, "file": "checkpoint_225.pt", "sha256": "a84d35bee3323cf60d0f0a09f0eece5ffb4c1e7bddbd196d4c478df15cb1b283", "bytes": 197237331,
+                    "model_state_sha256": "0990d7c25ec3108bd05f214e1cbfb5495cf12cfceec68e9fddfd7f404bc61482"},
+    "updates": "226..300 (75 updates), checkpoints/evals at 250, 275, 300, always stops at 300, one report, no retry",
+    "unchanged": ["plan and pinned hashes", "SliceAdam, LR 3e-4, replay rows per update 2, expert union", "restored v2 state incl. RNG and router", "data, held-out sets, evaluation, seed 0", "free Kaggle T4 x2"],
+    "paired_controls": "observed lambda 0.25 global-clip trajectory (control) and observed lambda 0.5 global-clip trajectory: non-gating comparisons only",
+    "single_seed_caveat": "one run, one seed. Single-checkpoint Y72 SD ~5.3 segments; mean-of-3 SD ~3-4 segments; MDE of the mean-of-3 vs 160 is 7.6-9.8 segments (3.8-4.9 pp) at one-sided alpha 0.05 and power 0.8"
+  },
+  "arithmetic": {
+    "rule": "integer cross-multiplication only; no float, no rounding",
+    "percent_ge": "count*1000 >= tenths_pct*total",
+    "gain_ge": "(new*old_tokens - old*new_tokens)*1000 >= tenths_pp*new_tokens*old_tokens",
+    "operators": ">= for every floor and for the gain threshold"
+  },
+  "gates": {
+    "R_retention": {
+      "text": "SUM over checkpoints 250, 275, 300 of Y72 held-out segment-exact >= 480 (mean >= 160/200 = 80.0%) AND every checkpoint >= 72.0% (>= 144/200)",
+      "threshold": {"sum3": 480, "per_checkpoint_tenths_pct": 720},
+      "boundary": {"sum3": {"480": true, "479": false}, "per_checkpoint": {"144": true, "143": false}},
+      "justification": "noise floor: one checkpoint has SD ~5.3 segments (binomial 5.66, churn model 5.2, within-item 5.3), so the old 'every checkpoint >= 160' rule fails a model whose true level is 168 about 7-19% of the time (fully correlated .. independent checkpoints, SD 5.66) and passes one at 156 about 2-27%; the three-checkpoint mean has SD ~3.1-3.9 (cluster bootstrap 3.7-3.95), which makes 'sum >= 480' fail a true-168 model 0.4-6% and pass a true-152 model 0.5-7%. The 144 guard only catches collapse."
+    },
+    "A_acquisition": {
+      "text": "X64 held-out segment-exact >= 11 at EVERY checkpoint AND X64 held-out token gain 225->300 >= 7.0 pp (tokens_correct(300) >= 1553 of 1920, from 1418)",
+      "threshold": {"seg": 11, "gain_tenths_pp": 70},
+      "boundary": {"seg": {"11": true, "10": false}, "tokens_at_300": {"1553": true, "1552": false}},
+      "justification": "control gained 14.0 pp (1687), lambda 0.5 gained 10.4 pp (1618); the real one-step probe shows the per-task clip makes about 0.60x (mean ratio of actual X-loss decrease, 12 steps) the X progress of the global clip, so 7.0 pp = 50% of the control gain keeps the gate non-trivial without demanding the control's pace"
+    },
+    "N_nonregression": {
+      "text": "X32 held-out segment-exact >= 40.0% (>= 128/320) and X109 >= 75.0% (>= 90/120) at EVERY checkpoint",
+      "boundary": {"X32": {"128": true, "127": false}, "X109": {"90": true, "89": false}}
+    }
+  },
+  "verdict_table": {
+    "SUCCESS": "R and A and N",
+    "FAIL_RETENTION": "not R, A, N",
+    "FAIL_ACQUISITION": "R, not A, N",
+    "FAIL_NONREGRESSION": "R, A, not N",
+    "FAIL_RETENTION_ACQUISITION": "not R, not A, N",
+    "FAIL_RETENTION_NONREGRESSION": "not R, A, not N",
+    "FAIL_ACQUISITION_NONREGRESSION": "R, not A, not N",
+    "FAIL_RETENTION_ACQUISITION_NONREGRESSION": "not R, not A, not N",
+    "NOT_EVALUATED_BEFORE_300": "history lacks any of 250, 275, 300"
+  },
+  "applied_to_observed_runs_for_reference": {
+    "lambda_0_25_global": {"y72": [137, 137, 153], "sum3": 427, "R": false},
+    "lambda_0_5_global": {"y72": [152, 147, 152], "sum3": 451, "R": false}
+  },
+  "not_gating": ["paired differences vs the lambda 0.25 and 0.5 trajectories", "per-update pre-clip norms", "Y72 NLL (not emitted by the notebook)", "train X64 counts", "router diagnostics"]
+}
