@@ -26,6 +26,11 @@ def test_real_model_resume_equivalence_and_negative_controls(tmp_path):
     assert res["positive_mismatch"] == []
     assert res["losses_straight"] == res["losses_resumed"]
     assert res["sampler"]["next_update_index"] == res["plan_start"] + res["N"]
+    # the one variable of the replay-weight experiment, on the real model classes
+    assert res["lambda_positive_mismatch"] == []
+    assert res["lambda_losses"]["straight_switched"] == res["lambda_losses"]["resumed_0_5"]
+    assert {"losses", "params"} <= set(res["lambda_negative_control_mismatch"])      # resuming at 0.25 cannot equal the 0.5 run
+    assert res["lambda_losses"]["straight_switched"][:res["N"]] == res["lambda_losses"]["resumed_0_25"][:res["N"]]
     expect = {
         "model": {"params"}, "optimizer": {"opt.exp_avg", "opt.step"}, "moments_only": {"opt.exp_avg", "params"},
         "clocks_only": {"opt.expert_steps", "params"}, "sampler_position": {"losses", "params"},

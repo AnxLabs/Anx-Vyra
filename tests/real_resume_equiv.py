@@ -55,6 +55,7 @@ class World:
             self.m.load_state_dict(W["model"], strict=True)
         self.opt = rv.make_optimizer(self.m)
         self.losses = []
+        self.lam = 0.25                    # replay weight; the lambda 0.25 -> 0.5 controls change only this
 
     def step(self, s):
         m, opt = self.m, self.opt
@@ -65,7 +66,7 @@ class World:
         rep = batch((s * 2 + 1) % 300)[:1]
         ly = ce(m(rep), rep); sel_b = rv.expert_selection(m)
         selected = {k: sorted(set(sel_a[k]) | set(sel_b[k])) for k in sel_a}
-        (lx + 0.25 * ly).backward()
+        (lx + self.lam * ly).backward()
         torch.nn.utils.clip_grad_norm_([p for p in m.parameters() if p.grad is not None], 1.0)
         opt.step(selected); m.zero_grad(set_to_none=True)
         self.losses.append((float(lx), float(ly)))
@@ -166,5 +167,12 @@ for name in ("moments_only", "clocks_only"):
     out["controls"][name] = diff(straight, snap(D))
 D = fresh_wrong(B.losses); restore(D, ck); D.run(START + N + 1, M)
 out["controls"]["sampler_position"] = diff(straight, snap(D))
+# the one changed variable of the replay-weight experiment: lambda 0.25 -> 0.5 right after the resume point
+seed_all(0); A2 = World(); A2.run(START, N); A2.lam = 0.5; A2.run(START + N, M); straight_l = snap(A2)
+E1 = fresh_wrong(B.losses); restore(E1, ck); E1.lam = 0.5; E1.run(START + N, M)
+out["lambda_positive_mismatch"] = diff(straight_l, snap(E1))
+E2 = fresh_wrong(B.losses); restore(E2, ck); E2.lam = 0.25; E2.run(START + N, M)
+out["lambda_negative_control_mismatch"] = diff(straight_l, snap(E2))
+out["lambda_losses"] = {"straight_switched": straight_l["losses"], "resumed_0_5": E1.losses, "resumed_0_25": E2.losses}
 out["elapsed_s"] = time.time() - t0
 print(json.dumps(out))

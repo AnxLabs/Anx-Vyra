@@ -68,6 +68,7 @@ class World:
         self.plan = make_plan()
         self.plan_mod = plan_module_for(self.plan)
         self.losses = []
+        self.lam = 0.25                  # replay weight; the lambda experiments change only this
 
     def step(self, s):
         """One update at plan index s. Draws once from each RNG stream."""
@@ -82,7 +83,7 @@ class World:
         ly = ((m(self.data[(s * 2 + 1) % N_STEPS_PLAN][:2], jitter) - self.target[(s * 2 + 1) % N_STEPS_PLAN][:2]) ** 2).mean()
         sel_b = LIB.expert_selection(m)
         selected = {k: sorted(set(sel_a[k]) | set(sel_b[k])) for k in sel_a}
-        loss = lx + 0.25 * ly
+        loss = lx + self.lam * ly
         loss.backward()
         torch.nn.utils.clip_grad_norm_([p for p in m.parameters() if p.grad is not None], 1.0)
         opt.step(selected)
