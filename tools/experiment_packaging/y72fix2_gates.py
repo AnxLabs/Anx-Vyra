@@ -26,7 +26,7 @@ def evaluate(h):
         return {"rule": RULE_ID, "checkpoints_seen": seen, "verdict": "NOT_EVALUATED_BEFORE_300"}
     r = heldout.evaluate({u: h[u]["y600"] for u in CHECKPOINTS})
     R = bool(r["R_retention"])
-    tok300 = h[300]["x64_tokens"]
+    tok300 = h[CHECKPOINTS[-1]]["x64_tokens"]
     A = all(h[u]["x64_seg"] >= X64_HELDOUT_SEG_FLOOR for u in CHECKPOINTS) and gain_ge(
         tok300, RESUME_X64_HELDOUT["tokens"], RESUME_X64_HELDOUT["tokens_correct"], RESUME_X64_HELDOUT["tokens"], X64_HELDOUT_GAIN_TENTHS_PP)
     N = all(pct_ge(h[u]["x32"], 320, X32_FLOOR_TENTHS_PCT) and pct_ge(h[u]["x109"], 120, X109_FLOOR_TENTHS_PCT) for u in CHECKPOINTS)
