@@ -293,6 +293,20 @@ Recorded verdict string from the run: `measurement study only: no training run, 
 actually shows, state any failure plainly, and scope the claim to this single-seed run. Then delete
 these markers. -->
 
+### 7. Y72-heldout-v2 — (generated draft)
+
+<!-- PUBLISH-GENERATED:BEGIN Y72-heldout-v2:readme -->
+Experiment `Y72-heldout-v2`. Curated record: [`results/experiment_y72-heldout-v2_heldout_600.json`](results/experiment_y72-heldout-v2_heldout_600.json).
+
+Recorded verdict string from the run: `pre-registered set and gate; existing checkpoints scored non-gating on CPU: both runs below the rescaled gate; noise scaling partly confirmed (single-checkpoint yes, mean-of-3 no)`.
+
+<!-- PUBLISH-GENERATED:END Y72-heldout-v2:readme -->
+
+<!-- TODO(publish): human judgement required. The block above is a dump of the curated record for
+`results/heldout_600.json`, not findings prose. Write this subsection by hand: state what the result
+actually shows, state any failure plainly, and scope the claim to this single-seed run. Then delete
+these markers. -->
+
 ## Known limitations
 
 Stated plainly, because a research repository is only useful if its edges are visible.
