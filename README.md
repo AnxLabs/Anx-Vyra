@@ -279,6 +279,20 @@ The chart plots per-geometry unseen token accuracy before and after. The anchors
 0 are the points that fall; the band geometries that never reached record level sit near the axis in
 both series.
 
+### 6. Y72-noise — (generated draft)
+
+<!-- PUBLISH-GENERATED:BEGIN Y72-noise:readme -->
+Experiment `Y72-noise`. Curated record: [`results/experiment_y72-noise_noise_floor_clip_split.json`](results/experiment_y72-noise_noise_floor_clip_split.json).
+
+Recorded verdict string from the run: `measurement study only: no training run, no gate evaluated; both earlier runs lost Y72 relative to update 225, replay weight 0.5 lost less (one seed, borderline)`.
+
+<!-- PUBLISH-GENERATED:END Y72-noise:readme -->
+
+<!-- TODO(publish): human judgement required. The block above is a dump of the curated record for
+`results/noise_floor_clip_split.json`, not findings prose. Write this subsection by hand: state what the result
+actually shows, state any failure plainly, and scope the claim to this single-seed run. Then delete
+these markers. -->
+
 ## Known limitations
 
 Stated plainly, because a research repository is only useful if its edges are visible.

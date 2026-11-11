@@ -253,6 +253,50 @@ The full curated record, including per-geometry and per-gap numbers, is in
 chart is [`distance_profile_y.svg`](distance_profile_y.svg).
 
 
+## Y72-noise — (generated draft)
+
+<!-- PUBLISH-GENERATED:BEGIN Y72-noise -->
+**Question.** How large is the checkpoint-to-checkpoint noise in the Y72 held-out retention metric (200 segments), is the old per-checkpoint gate itself noisy, and does a shared global clip between the X and replay gradients plausibly explain the Y72 drop?
+
+**Design.** CPU-only re-evaluation and gradient measurements from eight existing checkpoints (replay weight 0.25: updates 200/225/250/275/300; replay weight 0.5: updates 250/275/300). No training run, no GPU. Segment-exact = all 8 answer tokens correct. Noise models: binomial, row-cluster (ICC), adjacent-checkpoint churn, within-item Bernoulli, cluster bootstrap over 40 rows. Gradient split from separate per-row backward passes on 25 pinned-plan batches per state; one real optimizer step probed per scheme.
+
+**Setup.**
+
+- `heldout_segments`: 200
+- `rows`: 40
+- `segments_per_row`: 5
+- `tokens_per_segment`: 8
+- `cpu_eval_reproduces_gpu_counts`: True
+- `bootstrap`: cluster over rows
+- `alpha_one_sided`: 0.05
+- `power`: 0.8
+- `z_sum`: 2.4865
+- `clip_split_batches_per_state`: 25
+- `real_step_probe_steps`: 12
+
+**Final numbers.**
+
+- `segment_exact_by_checkpoint`: `{"l025_200": 165, "l025_225": 168, "l025_250": 137, "l025_275": 137, "l025_300": 153, "l05_250": 152, "l05_275": 147, "l05_300": 152}`
+- `adjacent_churn`: `{"l025_200->l025_225": {"changed_to_wrong": 23, "changed_to_right": 26, "net": 3, "flips": 49, "churn_rate": 0.245}, "l025_225->l025_250": {"changed_to_wrong": 46, "changed_to_right": 15, "net": -31, "flips": 61, "churn_rate": 0.305}, "l025_250->l025_275": {"changed_to_wrong": 30, "changed_to_right": 30, "net": 0, "flips": 60, "churn_rate": 0.3}, "l025_275->l025_300": {"changed_to_wrong": 18, "changed_to_right": 34, "net": 16, "flips": 52, "churn_rate": 0.26}, "l05_250->l05_275": {"changed_to_wrong": 28, "changed_to_right": 23, "net": -5, "flips": 51, "churn_rate": 0.255}, "l05_275->l05_300": {"changed_to_wrong": 24, "changed_to_right": 29, "net": 5, "flips": 53, "churn_rate": 0.265}}`
+- `mean_adjacent_flips`: `54.333333333333336`
+- `single_checkpoint_sd_segments`: `{"binomial_p0.8": 5.656854249492381, "churn_model": 5.2122, "within_item_all_8_observations": 5.2864, "row_icc_mean": -0.0148}`
+- `rms_adjacent_net_change_vs_churn_expectation`: `{"observed": 14.5831, "expected_from_churn_alone": 7.3711}`
+- `mean_of_checkpoints_250_275_300`: `{"replay_0.25": 142.3333, "replay_0.5": 150.3333, "sum_replay_0.25": 427, "sum_replay_0.5": 451, "cluster_bootstrap_se_replay_0.25": 3.6856, "cluster_bootstrap_se_replay_0.5": 3.9471}`
+- `paired_replay_0.5_minus_0.25_mean_of_3`: `{"diff_segments": 8.0, "cluster_boot_se": 3.8788127886548573, "z": 2.0624867545552097, "ci95": [1.7708057242771297e-15, 15.333333333333336], "frac_boot_le_0": 0.0216}`
+- `minimum_detectable_effect_single_checkpoint`: `{"binomial_iid": {"sd_S": 5.656854249492381, "mde_segments": 14.065768091362804, "mde_pp": 7.032884045681402, "mde_segments_alpha025": 15.848242865377854, "mde_pp_alpha025": 7.924121432688927}, "clustered": {"sd_S": 5.656854249492381, "mde_segments": 14.065768091362804, "mde_pp": 7.032884045681402, "mde_segments_alpha025": 15.848242865377854, "mde_pp_alpha025": 7.924121432688927}, "churn_i_single": {"sd_S": 5.212165257037297, "mde_segments": 12.960048911623238, "mde_pp": 6.480024455811619, "mde_segments_alpha025": 14.602402184115691, "mde_pp_alpha025": 7.301201092057846}}`
+- `one_real_update_flips_of_200`: `{"n_steps": 12, "flips_mean": 13.333333333333334, "flips_sd": 3.961940143032161, "flip_rate_per_step": 0.06666666666666667}`
+- `recommended_gate_for_200_set`: `"sum of Y72 segment-exact over checkpoints 250/275/300 >= 480 and every checkpoint >= 144 (superseded for new experiments by the 600-segment set, see Y72-heldout-v2)"`
+- `shared_clip_split_per_state`: `{"l025_225": {"update": 225, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 4.5192, "mean_norm_replay_grad": 3.0838, "median_norm_replay_grad": 1.6363, "mean_cos_x_vs_replay": -0.1061, "frac_batches_conflict": 0.76, "mean_global_clip_multiplier": 0.2442, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.04, "replay_share_of_update_norm_global_clip": 0.1506, "replay_share_of_update_norm_per_task_clip_0p5": 0.3548}, "l025_250": {"update": 250, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 2.6103, "mean_norm_replay_grad": 3.2022, "median_norm_replay_grad": 2.1736, "mean_cos_x_vs_replay": -0.0614, "frac_batches_conflict": 0.72, "mean_global_clip_multiplier": 0.393, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.0, "replay_share_of_update_norm_global_clip": 0.2217, "replay_share_of_update_norm_per_task_clip_0p5": 0.4526}, "l025_275": {"update": 275, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 3.0336, "mean_norm_replay_grad": 5.2119, "median_norm_replay_grad": 4.3211, "mean_cos_x_vs_replay": -0.0884, "frac_batches_conflict": 0.72, "mean_global_clip_multiplier": 0.4014, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.08, "replay_share_of_update_norm_global_clip": 0.2909, "replay_share_of_update_norm_per_task_clip_0p5": 0.4555}, "l025_300": {"update": 300, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 3.0806, "mean_norm_replay_grad": 1.2824, "median_norm_replay_grad": 0.6041, "mean_cos_x_vs_replay": 0.0306, "frac_batches_conflict": 0.36, "mean_global_clip_multiplier": 0.412, "frac_batches_clip_binding": 0.96, "frac_batches_replay_exceeds_x_norm": 0.04, "replay_share_of_update_norm_global_clip": 0.1136, "replay_share_of_update_norm_per_task_clip_0p5": 0.2782}, "l05_300": {"update": 300, "replay_weight": 0.5, "batches": 25, "mean_norm_x_grad": 2.4696, "mean_norm_replay_grad": 3.6765, "median_norm_replay_grad": 2.3708, "mean_cos_x_vs_replay": 0.0133, "frac_batches_conflict": 0.4, "mean_global_clip_multiplier": 0.3578, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.32, "replay_share_of_update_norm_global_clip": 0.3512, "replay_share_of_update_norm_per_task_clip_0p5": 0.4639}}`
+- `one_step_scheme_effects`: `{"per_task_clip_minus_global": {"n": 12, "dS_mean": 1.4166666666666667, "dS_se": 0.5429762723390704, "dNLL_mean": -0.00427224300801754, "dNLL_se": 0.0019741419994247886, "dLx_actual_ratio_to_A_mean": 0.5963725512547295, "dLx_actual_ratio_median": 0.6029059136034365}, "pcgrad_then_global_minus_global": {"n": 12, "dS_mean": 0.5, "dS_se": 0.2886751345948129, "dNLL_mean": -0.0013105794787406921, "dNLL_se": 0.0004403833497011578, "dLx_actual_ratio_to_A_mean": 0.9935884788968092, "dLx_actual_ratio_median": 1.0}}`
+- `no_more_heldout_items_in_saved_data`: `true`
+- `not_established`: `"any effect of a clip scheme on a 75-update trajectory; relation of the Y72 sawtooth phase to the replay-row cycle"`
+
+**Cost.** gpu_hours=0, usd=0, cpu_seconds_y72_eval=460.9, cpu_seconds_clip_split=8132, cpu_seconds_step_probes=1907
+
+<!-- PUBLISH-GENERATED:END Y72-noise -->
+
+<!-- TODO(publish): human judgement required. The block above is a faithful dump of the curated record, not prose. Replace it with a narrative section in the same voice as the E-W entries: what was asked, what actually happened, what failed, and what it means. Keep the generated numbers; do not restate any number that is not in results/. Then delete these markers. -->
+
 ## Open questions
 
 1. ~~Does rehearsing prior distances inside the training mix prevent the interference, or only slow
