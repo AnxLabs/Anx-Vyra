@@ -13,12 +13,13 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+import kaggle_config as K
 
 
 def _require_mounts(inputs):
     inputs = Path(inputs).resolve()
-    x_root = inputs / "vyra-x-bundle"
-    y_root = inputs / "vyra-y-bundle"
+    x_root = inputs / K.expand("@@SLUG_X_BUNDLE@@")
+    y_root = inputs / K.expand("@@SLUG_Y_BUNDLE@@")
     if not x_root.is_dir() or not y_root.is_dir():
         raise ValueError("MISSING_DATASET_MOUNT")
     return x_root, y_root
@@ -70,10 +71,10 @@ def command(package, inputs, work, runtime):
         "--ro-bind", str(runtime), "/runtime",
         "--ro-bind", str(tools / "execute_notebook.py"), "/tools/execute_notebook.py",
         "--ro-bind", str(notebook), "/tools/replay.ipynb",
-        "--ro-bind", str(x_root), "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
-        "--ro-bind", str(y_root), "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle",
-        "--bind", str(work), "/kaggle/working",
-        "--chdir", "/kaggle/working",
+        "--ro-bind", str(x_root), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
+        "--ro-bind", str(y_root), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@"),
+        "--bind", str(work), K.expand("@@KROOT@@/working"),
+        "--chdir", K.expand("@@KROOT@@/working"),
         "/runtime/bin/python", "-I", "/tools/execute_notebook.py", "/tools/replay.ipynb",
     ]
     if "/submission" in cmd:
@@ -89,7 +90,7 @@ def validate(package, inputs, work, log, runtime):
     meta = json.loads((package / "kernel" / "kernel-metadata.json").read_text())
     if meta["is_private"] is not True or meta["enable_internet"] is not False:
         raise ValueError("Unsafe kernel privacy/network config")
-    if meta["dataset_sources"] != ["anjorosimoaj/vyra-x-bundle", "anjorosimoaj/vyra-y-bundle"]:
+    if meta["dataset_sources"] != [K.expand("@@KUSER@@/@@SLUG_X_BUNDLE@@"), K.expand("@@KUSER@@/@@SLUG_Y_BUNDLE@@")]:
         raise ValueError("Dataset config changed")
     cmd = command(package, inputs, work, runtime)
     start = time.monotonic()

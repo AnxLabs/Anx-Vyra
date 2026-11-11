@@ -20,7 +20,8 @@ finally:
     probe.close()
 
 submission_exists = Path("/submission").exists()
-Path("/kaggle/working/sandbox_probe.json").write_text(json.dumps({
+# the sandbox starts in the notebook working directory (--chdir), so the probe is written there
+(Path.cwd() / "sandbox_probe.json").write_text(json.dumps({
     "network_blocked": network_blocked,
     "network_interfaces": socket.if_nameindex(),
     "outside_workspace_visible": Path("/workspace").exists(),

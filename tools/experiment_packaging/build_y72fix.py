@@ -19,6 +19,9 @@ from name_order import used_before_binding
 from plan_extension import PINNED_FULL_PLAN_SHA256, PINNED_PREFIX_PLAN_SHA256
 from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
 from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
+import kaggle_config as K
+
+K.load()  # fail closed at import if the private kaggle config is missing
 
 HERE = Path(__file__).parent
 EXTRA_ASSETS = ("continuation.py", "plan_extension.py", "resume225.py", "y72fix_gates.py")
@@ -33,14 +36,15 @@ def check_checkpoint(path):
     if len(raw) != CKPT225_BYTES or hashlib.sha256(raw).hexdigest() != CKPT225_SHA256:
         raise ValueError("CHECKPOINT_CHANGED")
     return {
-        "id": CKPT225_DATASET_ID,
-        "mount": CKPT225_MOUNT,
+        "id": K.expand(CKPT225_DATASET_ID),
+        "mount": K.expand(CKPT225_MOUNT),
         "files": {"checkpoint_225.pt": CKPT225_SHA256},
         "bytes": CKPT225_BYTES,
     }
 
 
 def build(args):
+    K.require_real()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     source = Path(args.source_notebook)
@@ -62,15 +66,15 @@ def build(args):
     preflight = preflight.replace("'X/make_corpus_X.py':", "'WORK/make_corpus_X.py':")
     preflight = preflight.replace(
         "roots=resolve(mapping);hashes={}",
-        "roots=resolve(mapping);roots['WORK']=Path('/kaggle/working');hashes={}",
+        K.expand("roots=resolve(mapping);roots['WORK']=Path('@@KROOT@@/working');hashes={}"),
     )
     assets["input_preflight.py"] = preflight
     treatment, _ = prepare_treatment(assets["treatment.py"], builder_text)
     assets["treatment.py"] = apply_continue225(treatment)
     for name in ("dependency_gate.py", "replay_telemetry.py", "x64_checkpoint.py", "rehearsal_artifact.py",
                  "rehearsal_Y72_40_manifest.json") + EXTRA_ASSETS:
-        assets[name] = (HERE / name).read_text()
-    assets["preclip_diag.py"] = patch_preclip_diag((HERE / "preclip_diag.py").read_text())
+        assets[name] = K.read_asset(HERE / name)
+    assets["preclip_diag.py"] = patch_preclip_diag(K.read_asset(HERE / "preclip_diag.py"))
     audit = json.loads(Path(args.archive_audit).read_text())
     datasets = check_archives(args.x_archive, args.y_archive, audit)
     datasets["C"] = check_checkpoint(args.checkpoint)
@@ -93,27 +97,30 @@ notebook_start=time.monotonic()
 """
     program += "assets=" + repr(assets) + "\n"
     program += "asset_hashes=" + repr({name: hashlib.sha256(text.encode()).hexdigest() for name, text in assets.items()}) + "\n"
-    program += """if set(assets)!=set(asset_hashes): raise ValueError('BOOTSTRAP_ASSET_SET_MISMATCH')
+    program += K.expand("""if set(assets)!=set(asset_hashes): raise ValueError('BOOTSTRAP_ASSET_SET_MISMATCH')
 for name,text in assets.items():
     if hashlib.sha256(text.encode()).hexdigest()!=asset_hashes[name]:raise ValueError('BOOTSTRAP_CORRUPT '+name)
-    Path('/kaggle/working',name).write_text(text)
-sys.path.insert(0,'/kaggle/working')
-""" + rehearsal_bootstrap(replay_path.read_bytes()) + """from dependency_gate import verify_lock
+    Path('@@KROOT@@/working',name).write_text(text)
+sys.path.insert(0,'@@KROOT@@/working')
+""") + rehearsal_bootstrap(replay_path.read_bytes()) + K.expand("""from dependency_gate import verify_lock
 verified=verify_lock()
-Path('/kaggle/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
+Path('@@KROOT@@/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
 from input_preflight import validate, XID, YID
-mapping={XID:'/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle',YID:'/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle'}
+mapping={XID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@',YID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@'}
 validation,roots=validate(mapping)
-Path('/kaggle/working/input_validation.json').write_text(json.dumps(validation,indent=2))
+Path('@@KROOT@@/working/input_validation.json').write_text(json.dumps(validation,indent=2))
 os.environ['XROOT']=str(roots['X']);os.environ['YROOT']=str(roots['Y'])
 if os.environ.get('VYRA_PREFLIGHT_ONLY')!='1':
     print(subprocess.check_output(['nvidia-smi','--query-gpu=name,memory.total','--format=csv,noheader'],text=True))
 from entry import launch_gpu
-result=launch_gpu('/kaggle/working/timeout_status.json',cap=600,grace=2)
+result=launch_gpu('@@KROOT@@/working/timeout_status.json',cap=600,grace=2)
 print('HARNESS',result)
-Path('/kaggle/working/notebook_timing.json').write_text(json.dumps({'notebook_cell_wall_s':time.monotonic()-notebook_start,'platform_timeout_requires_CLI_flag':900,'preflight_only':os.environ.get('VYRA_PREFLIGHT_ONLY')=='1','coverage':'queue/provisioning not bounded'}))
+Path('@@KROOT@@/working/notebook_timing.json').write_text(json.dumps({'notebook_cell_wall_s':time.monotonic()-notebook_start,'platform_timeout_requires_CLI_flag':900,'preflight_only':os.environ.get('VYRA_PREFLIGHT_ONLY')=='1','coverage':'queue/provisioning not bounded'}))
 if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess failed/timed out; no retry')
-"""
+""")
+    K.assert_clean(program, "notebook program")
+    for _name, _text in assets.items():
+        K.assert_clean(_text, "asset " + _name)
     assert_notebook_contract(program)
     ast.parse(program)
     for name, text in assets.items():
@@ -139,8 +146,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
     kernel.mkdir(exist_ok=True)
     (kernel / "replay.ipynb").write_text(json.dumps(built, indent=1, sort_keys=True) + "\n")
     meta = {
-        "id": "anjorosimoaj/vyra-y72fix-lambda05-packaged",
-        "title": "vyra-y72fix-lambda05-packaged",
+        "id": K.expand("@@KUSER@@/@@SLUG_KERNEL_Y72FIX@@"),
+        "title": K.expand("@@SLUG_KERNEL_Y72FIX@@"),
         "code_file": "replay.ipynb",
         "language": "python",
         "kernel_type": "notebook",

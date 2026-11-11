@@ -12,6 +12,7 @@ step. When the replay term is off, the captured first selection is the only
 forward, which is the single-forward behavior. Nothing here accumulates
 selections inside Experts or across updates.
 """
+import kaggle_config as K
 
 BUGGY_LOSS_LINE = "loss=lx; ly=None\n"
 FIXED_LOSS_LINE = "loss=lx; ly=None; selected=rv.expert_selection(m)\n"
@@ -119,9 +120,9 @@ def apply_replay_telemetry(source, *, require_arm=True):
         out = out.replace(_ARM_OPT, _ARM_OPT + "; tel=ReplayTelemetry(m, opt, STEPS)", 1)
         indent, line_start, _index = _indent_at(out, _ARM_FOR)
         loader = (
-            f"{indent}import importlib.util as _ilu\n"
-            f"{indent}_tspec=_ilu.spec_from_file_location('replay_telemetry','/kaggle/working/replay_telemetry.py')\n"
-            f"{indent}_tmod=_ilu.module_from_spec(_tspec); _tspec.loader.exec_module(_tmod); ReplayTelemetry=_tmod.ReplayTelemetry\n"
+            K.expand(f"{indent}import importlib.util as _ilu\n"
+            f"{indent}_tspec=_ilu.spec_from_file_location('replay_telemetry','@@KROOT@@/working/replay_telemetry.py')\n"
+            f"{indent}_tmod=_ilu.module_from_spec(_tspec); _tspec.loader.exec_module(_tmod); ReplayTelemetry=_tmod.ReplayTelemetry\n")
         )
         out = out[:line_start] + loader + out[line_start:]
         out = _insert_before(out, _ARM_NOTE, "A['expert_telemetry']=tel.summary()")

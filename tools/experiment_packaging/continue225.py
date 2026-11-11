@@ -12,16 +12,17 @@ relative to the notebook that produced checkpoint_225 are exactly:
 Everything else (plan, seed handling, LR 3e-4, clip 1.0, replay rows per update, union, optimizer, data) is untouched.
 """
 from continue300 import apply_continue300
+import kaggle_config as K
 
 HEAD_300 = (
-    "HARD=600; SOFT=598; STEPS=300; START=200; RB=2; EVAL_AT={225,250,275,300}\n"
-    "CKPT_PATH='/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint/checkpoint_200.pt'\n"
-    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'"
+    K.expand("HARD=600; SOFT=598; STEPS=300; START=200; RB=2; EVAL_AT={225,250,275,300}\n"
+    "CKPT_PATH='@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT200@@/checkpoint_200.pt'\n"
+    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'")
 )
 HEAD_225 = (
-    "HARD=600; SOFT=598; STEPS=300; START=225; RB=2; EVAL_AT={250,275,300}\n"
-    "CKPT_PATH='/kaggle/input/datasets/anjorosimoaj/vyra-resume300-ckpt225/checkpoint_225.pt'\n"
-    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'"
+    K.expand("HARD=600; SOFT=598; STEPS=300; START=225; RB=2; EVAL_AT={250,275,300}\n"
+    "CKPT_PATH='@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT225@@/checkpoint_225.pt'\n"
+    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'")
 )
 LOAD_300 = "cont=_cn_load('continuation'); stop_rule=_cn_load('stop_rule')\n"
 LOAD_225 = "cont=_cn_load('continuation'); r225=_cn_load('resume225'); gates=_cn_load('y72fix_gates')\n"

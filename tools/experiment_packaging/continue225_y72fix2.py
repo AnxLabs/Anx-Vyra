@@ -14,6 +14,7 @@ Everything else (plan, seed handling, LR 3e-4, replay rows per update, union, op
 """
 import continue225 as c5
 from continue300 import apply_continue300
+import kaggle_config as K
 
 LOAD_NEW = ("cont=_cn_load('continuation'); r225=_cn_load('resume225_y72fix2'); gates=_cn_load('y72fix2_gates'); "
             "y2rt=_cn_load('y72fix2_runtime'); clip_scheme=_cn_load('clip_scheme')\n")
@@ -41,7 +42,7 @@ HO_OLD = "  HO['nova_diag_5000_5005']=diag\n"
 HO_NEW = HO_OLD + "  y2rt=_cn_load('y72fix2_runtime'); HO[y2rt.KEY]=y2rt.load_y600()\n"
 EV_OLD = "  EV=['Y72_unseen','X32_unseen','X64_unseen','X109_unseen']\n"
 EV_NEW = "  EV=['Y72_unseen','X32_unseen','X64_unseen','X109_unseen',y2rt.KEY]\n"
-CNLOAD_OLD = "  import importlib.util as _cnilu\n  def _cn_load(_n):\n      _sp=_cnilu.spec_from_file_location(_n,'/kaggle/working/'+_n+'.py'); _mo=_cnilu.module_from_spec(_sp); _sp.loader.exec_module(_mo); return _mo\n"
+CNLOAD_OLD = K.expand("  import importlib.util as _cnilu\n  def _cn_load(_n):\n      _sp=_cnilu.spec_from_file_location(_n,'@@KROOT@@/working/'+_n+'.py'); _mo=_cnilu.module_from_spec(_sp); _sp.loader.exec_module(_mo); return _mo\n")
 DIAG_OLD = "DIAGNOSTIC_UPDATES = (1, 75, 125, 175, 200)"
 DIAG_NEW = "DIAGNOSTIC_UPDATES = ()"
 
@@ -55,8 +56,8 @@ def apply_y72fix2(source):
     out = apply_continue300(source)
     # the baseline assignments of the 600-set must precede _cn_load use: HO is built before _cn_load is defined in the real treatment,
     # so the HO/EV edits import the runtime module directly
-    ho_new = ("  import importlib.util as _y2ilu\n  _y2sp=_y2ilu.spec_from_file_location('y72fix2_runtime','/kaggle/working/y72fix2_runtime.py'); y2rt=_y2ilu.module_from_spec(_y2sp); _y2sp.loader.exec_module(y2rt)\n"
-              "  HO[y2rt.KEY]=y2rt.load_y600()\n")
+    ho_new = (K.expand("  import importlib.util as _y2ilu\n  _y2sp=_y2ilu.spec_from_file_location('y72fix2_runtime','@@KROOT@@/working/y72fix2_runtime.py'); y2rt=_y2ilu.module_from_spec(_y2sp); _y2sp.loader.exec_module(y2rt)\n"
+              "  HO[y2rt.KEY]=y2rt.load_y600()\n"))
     for label, old, new in SWAPS + (("ho", HO_OLD, HO_OLD + ho_new), ("ev", EV_OLD, EV_NEW)):
         if out.count(old) != 1:
             raise ValueError(f"CONTINUE225_Y72FIX2_PATTERN_MISSING {label} count={out.count(old)}")

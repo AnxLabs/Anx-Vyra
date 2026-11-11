@@ -12,9 +12,11 @@ from pathlib import Path
 
 import numpy as np
 
-X = Path(os.environ.get("VYRA_X_BUNDLE", "/workspace/vera/packaging-rootfix-20261106/inputs/vyra-x-bundle"))
 PKG = Path(__file__).resolve().parents[1] / "tools" / "experiment_packaging"
-sys.path.insert(0, str(PKG)); sys.path.insert(0, str(X))
+sys.path.insert(0, str(PKG))
+import kaggle_config as K  # noqa: E402
+X = Path(os.environ.get("VYRA_X_BUNDLE", K.expand("@@LOCAL_INPUTS@@/@@SLUG_X_BUNDLE@@")))
+sys.path.insert(0, str(X))
 os.environ["OMP_NUM_THREADS"] = "2"
 # Root cause of the former 1-in-4..1-in-8 flake (see REPORT in vyra-y72heldout-20261111): the FIRST call of an MKL/VML-backed
 # elementwise op (the rope shim's angles.cos()/.sin()) can return different low bits than every later call in the same process,

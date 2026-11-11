@@ -4,6 +4,7 @@ Changes: STEPS 175->200, EVAL_AT adds 200, and a post-eval x64_checkpoint.dump
 at updates 175 and 200. Seed, LR (constant 3e-4, re-set every update; no
 schedule), replay weight, replay indexing, clip, union and eval are untouched.
 """
+import kaggle_config as K
 
 _HEAD = "HARD=600; SOFT=598; STEPS=175; RB=2; EVAL_AT={75,125,175}"
 _HEAD_NEW = "HARD=600; SOFT=598; STEPS=200; RB=2; EVAL_AT={75,125,175,200}"
@@ -23,7 +24,7 @@ def apply_update200(source):
     ind = out[ls:out.index(_LOADER)]
     ind = ind[:len(ind) - len(ind.lstrip())]
     out = out[:i] + "".join(ind + l + "\n" for l in (
-        "_cspec=_ilu.spec_from_file_location('x64_checkpoint','/kaggle/working/x64_checkpoint.py')",
+        K.expand("_cspec=_ilu.spec_from_file_location('x64_checkpoint','@@KROOT@@/working/x64_checkpoint.py')"),
         "_cmod=_ilu.module_from_spec(_cspec); _cspec.loader.exec_module(_cmod); x64_checkpoint=_cmod",
     )) + out[i:]
     j = out.index(_EVAL)

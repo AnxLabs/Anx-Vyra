@@ -16,7 +16,7 @@ Evidence: `/workspace/forge/vyra-noise-clip-study-20261110/REPORT.md` (CPU only,
    the pre-clip norm logged in `A['preclip_norm']`, `tel.note_grads`, `preclip_diag.finish_combined` (which assumes the global clip multiplier) and the finite-gradient check
    must be re-pointed and re-tested (observer invariance included). Two backward passes instead of one (the second only through the 2 replay rows).
 2. A resume module that accepts replay_lambda == saved 0.25 (resume225 pins 0.5), a gates import swap, a builder variant, a CPU smoke/validate pair and the two-identical-builds proof.
-3. New kernel id; the private dataset `anjorosimoaj/vyra-resume300-ckpt225` can be reused, so no new upload.
+3. New kernel id; the private checkpoint-225 dataset can be reused, so no new upload.
 Estimated work: about 5 new modules plus tests and a build/validate cycle. Run cost estimate (from the two observed 75-update runs, trainer ~130 s, notebook ~148 s, ~0.09-0.15 h of
 displayed quota, $0): about 1.2-1.4x for the second backward on 2 rows, i.e. roughly 3 minutes, still $0 on the free T4 x2.
 Approval it would need: building it (code + tests + commit), then a separate approval to run one kernel on free T4 x2.

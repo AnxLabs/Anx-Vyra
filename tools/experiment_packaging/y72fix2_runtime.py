@@ -11,7 +11,7 @@ import torch
 import y72_heldout_v2 as heldout
 
 KEY = "Y72v2_600"
-SET_PATH = "/kaggle/working/y72_heldout_v2_set.json"
+SET_PATH = "@@KROOT@@/working/y72_heldout_v2_set.json"
 
 
 def load_y600(path=SET_PATH):

@@ -15,7 +15,7 @@ This document describes how that specification was turned into a closed notebook
   unclipped combined norm are logged instead.
 * `resume225_y72fix2.py`: the checkpoint-225 resume of the λ0.5 package with the replay weight required to stay at the saved 0.25.
 * `y72fix2_runtime.py`: loading the 600-set, turning the run history into the gate inputs (with denominator checks), the logged norm.
-* Kernel `…/vyra-y72fix2-pertask-packaged`, private, GPU `NvidiaTeslaT4`, internet off, datasets: X bundle, Y bundle and the private checkpoint-225 dataset reused from the λ0.5 run.
+* Kernel (slug in the local `kaggle_config.json`), private, GPU `NvidiaTeslaT4`, internet off, datasets: X bundle, Y bundle and the private checkpoint-225 dataset reused from the λ0.5 run.
 
 ## Checks before launch
 Two builds in different working directories / hash seeds / time zones are byte-identical; bubblewrap preflight (no network, no GPU) passes with

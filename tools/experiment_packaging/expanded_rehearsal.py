@@ -5,6 +5,7 @@ two rows per update. The index modulus changes from 8 to 40. X batches, seed,
 loss weight, clip, and the one combined backward are not rewritten.
 """
 from expert_union import _indent_at
+import kaggle_config as K
 
 _SHAPE = "if tuple(Y72['rows'].shape)!=(8,512) or tuple(Y72['unseen'].shape)!=(40,512): stop('Y72 shape')\n"
 _REPLAY = (
@@ -57,9 +58,9 @@ def apply_expanded_rehearsal(source):
     out = out.replace(_ARM, _ARM_NEW, 1)
     out = _insert_after(out, _SHAPE, [
         "import importlib.util as _rilu",
-        "_rspec=_rilu.spec_from_file_location('rehearsal_artifact','/kaggle/working/rehearsal_artifact.py')",
+        K.expand("_rspec=_rilu.spec_from_file_location('rehearsal_artifact','@@KROOT@@/working/rehearsal_artifact.py')"),
         "_rmod=_rilu.module_from_spec(_rspec); _rspec.loader.exec_module(_rmod)",
-        "RY=_rmod.load_for_training('/kaggle/working/rehearsal_Y72_40.pt', set(Y72['unseen_payloads']))",
+        K.expand("RY=_rmod.load_for_training('@@KROOT@@/working/rehearsal_Y72_40.pt', set(Y72['unseen_payloads']))"),
         "if tuple(RY['rows'].shape)!=(40,512) or tuple(RY['mask'].shape)!=(40,510): stop('rehearsal shape')",
     ])
     out = _insert_after(out, _BLOCKED, [
@@ -77,7 +78,7 @@ def apply_expanded_rehearsal(source):
     diag_loader = "".join(
         indent + line + "\n" for line in (
             "import importlib.util as _dilu",
-            "_dspec=_dilu.spec_from_file_location('preclip_diag','/kaggle/working/preclip_diag.py')",
+            K.expand("_dspec=_dilu.spec_from_file_location('preclip_diag','@@KROOT@@/working/preclip_diag.py')"),
             "_dmod=_dilu.module_from_spec(_dspec); _dspec.loader.exec_module(_dmod); preclip_diag=_dmod",
         )
     )

@@ -21,6 +21,7 @@ from negative_tests import CASES, stage_negative_kernel  # noqa: E402
 from runtime_contract import assert_notebook_contract, materialize_embedded, rehearsal_bootstrap  # noqa: E402
 from validate_package import command  # noqa: E402
 from verify_receipt import verify, write_receipt  # noqa: E402
+import kaggle_config as K  # noqa: E402
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -78,7 +79,7 @@ def test_prepare_treatment_keeps_preflight_and_applies_union_once():
     assert "model_forward_calls':0" in patched
     assert "opt.step(selected)" in patched
     assert "opt.step(rv.expert_selection(" not in patched
-    assert "Path('/kaggle/working/make_corpus_X.py'):" in patched
+    assert K.expand("Path('@@KROOT@@/working/make_corpus_X.py'):") in patched
     assert "tel.begin_update(m, opt)" in patched
     assert "tel.note_grads(m)" in patched
     assert "tel.finish_update(m, opt, tel_first, tel_second, selected)" in patched
@@ -155,7 +156,7 @@ def test_wrong_path_fixture_keeps_every_kernel_companion(tmp_path):
     assert (staged / "rehearsal_Y72_40.pt").read_bytes() == b"synthetic-companion-not-the-real-artifact"
     assert (staged / "kernel-metadata.json").is_file()
     assert "synthetic-companion" not in (staged / "replay.ipynb").read_text()
-    assert CASES["wrong_path"] == ("missing dataset root anjorosimoaj/vyra-x-bundle", "path")
+    assert CASES["wrong_path"] == (K.expand("missing dataset root @@KUSER@@/@@SLUG_X_BUNDLE@@"), "path")
 
 
 def test_launch_gate_refuses_push_without_a_network_call(tmp_path):
@@ -227,8 +228,8 @@ def test_sandbox_command_does_not_mount_the_checkout(tmp_path, monkeypatch):
     (runtime / "bin").mkdir(parents=True)
     (runtime / "bin" / "python").write_text("#!/bin/sh\n")
     inputs = tmp_path / "inputs"
-    (inputs / "vyra-x-bundle").mkdir(parents=True)
-    (inputs / "vyra-y-bundle").mkdir(parents=True)
+    (inputs / K.expand("@@SLUG_X_BUNDLE@@")).mkdir(parents=True)
+    (inputs / K.expand("@@SLUG_Y_BUNDLE@@")).mkdir(parents=True)
     package = tmp_path / "package"
     kernel = package / "kernel"
     kernel.mkdir(parents=True)
@@ -242,9 +243,9 @@ def test_sandbox_command_does_not_mount_the_checkout(tmp_path, monkeypatch):
     assert str(sidecar) not in argv
     assert "/submission" not in argv
     assert "/tools/replay.ipynb" in argv
-    assert "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle" in argv
-    assert "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle" in argv
-    assert str(inputs / "vyra-x-bundle") in binds
+    assert K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@") in argv
+    assert K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@") in argv
+    assert str(inputs / K.expand("@@SLUG_X_BUNDLE@@")) in binds
     assert "/workspace" not in argv
     assert "VYRA_PREFLIGHT_ONLY" in argv
 
@@ -255,13 +256,13 @@ def test_rehearsal_bytes_are_embedded_and_submission_is_refused():
     with pytest.raises(ValueError, match="REPLAY_ARTIFACT_HASH"):
         materialize_embedded("bm90LXRoZS1waW5uZWQtYXJ0aWZhY3Q=")
     bad = (
-        "embedded_rehearsal_b64='x'\n"
+        K.expand("embedded_rehearsal_b64='x'\n"
         "replay_bytes=base64.b64decode(embedded_rehearsal_b64)\n"
         "Path('/submission/rehearsal_Y72_40.pt').read_bytes()\n"
-        "Path('/kaggle/working/rehearsal_Y72_40.pt')\n"
+        "Path('@@KROOT@@/working/rehearsal_Y72_40.pt')\n"
         "'abd8d94d7e105deab2a19c461266c89ab308f7edf67b4394b638afdb7cb474d7'\n"
-        "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle\n"
-        "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle\n"
+        "@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@\n"
+        "@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@\n")
     )
     with pytest.raises(ValueError, match="RUNTIME_CONTRACT_FORBIDDEN /submission"):
         assert_notebook_contract(bad)

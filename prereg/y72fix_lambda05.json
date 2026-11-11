@@ -9,7 +9,7 @@
     "treatment_value": 0.5,
     "resume_from": {"update": 225, "file": "checkpoint_225.pt", "sha256": "a84d35bee3323cf60d0f0a09f0eece5ffb4c1e7bddbd196d4c478df15cb1b283", "bytes": 197237331,
                     "model_state_sha256": "0990d7c25ec3108bd05f214e1cbfb5495cf12cfceec68e9fddfd7f404bc61482",
-                    "origin": "written by the approved 200->300 run (anjorosimoaj/vyra-resume300-packaged, Nov 10 2026), downloaded outputs; complete v2 state"},
+                    "origin": "written by the approved 200->300 run (the approved 200->300 kernel, private slug withheld, Nov 10 2026), downloaded outputs; complete v2 state"},
     "updates": "226..300 (75 updates), always stops at 300 with one report",
     "checkpoints": [250, 275, 300],
     "pinned_unchanged": ["plan (prefix 0..199 sha c3ac1155e0e21b25133d7e76aa63589a98e53d3e80ee3b0c645daa3fcd365ae7, full sha 2c59794e261a88216e5d77141b3373073c6e518545dce8a2578f279e95de86aa)",

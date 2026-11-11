@@ -13,6 +13,7 @@ sys.path.insert(0, str(PACKAGING))
 import continue225 as c5  # noqa: E402
 import resume225 as r225  # noqa: E402
 import y72fix_gates as gates  # noqa: E402
+import kaggle_config as K  # noqa: E402
 
 
 def _synthetic():
@@ -60,9 +61,9 @@ def test_swaps_change_only_what_the_docstring_says():
     assert labels == ["head", "load", "gate", "restore", "prov", "lam", "steps", "eval", "final"]
     assert c5.HEAD_225.count("START=225") == 1 and "STEPS=300" in c5.HEAD_225 and "RB=2" in c5.HEAD_225 and "HARD=600; SOFT=598" in c5.HEAD_225
     assert c5.HEAD_225.replace("START=225", "START=200").replace("EVAL_AT={250,275,300}", "EVAL_AT={225,250,275,300}").replace(
-        "vyra-resume300-ckpt225/checkpoint_225.pt", "vyra-expanded40-200u-checkpoint/checkpoint_200.pt") == c5.HEAD_300
+        K.expand("@@SLUG_CKPT225@@/checkpoint_225.pt"), K.expand("@@SLUG_CKPT200@@/checkpoint_200.pt")) == c5.HEAD_300
     assert c5.DIAG_NEW == "DIAGNOSTIC_UPDATES = (250, 275, 300)"
-    assert c5.HEAD_225.split("CKPT_PATH='")[1].split("'")[0] == r225.CKPT225_PATH
+    assert c5.HEAD_225.split("CKPT_PATH='")[1].split("'")[0] == K.expand(r225.CKPT225_PATH)
 
 
 def test_diag_patch_is_exact():
@@ -91,18 +92,18 @@ def test_built_y72fix_notebook():
     assert "load_checkpoint200" not in t and "checkpoint_200" not in t and "stop_rule" not in t
     assert t.index("r225.load_checkpoint225(") < t.index("r225.check_resume_restoration(") < t.index("for s in range(START, STEPS)")
     assert "random.seed(0)" not in t and "manual_seed(0)" not in t
-    assert assets["resume225.py"] == (PACKAGING / "resume225.py").read_text() and assets["y72fix_gates.py"] == (PACKAGING / "y72fix_gates.py").read_text()
+    assert assets["resume225.py"] == K.read_asset(PACKAGING / "resume225.py") and assets["y72fix_gates.py"] == K.read_asset(PACKAGING / "y72fix_gates.py")
     assert "DIAGNOSTIC_UPDATES = (250, 275, 300)" in assets["preclip_diag.py"]
     lock = json.loads(assets["dependency_lock.json"])
     assert lock["datasets"]["C"]["files"] == {"checkpoint_225.pt": r225.CKPT225_SHA256}
-    assert lock["datasets"]["C"]["mount"] == r225.CKPT225_MOUNT and lock["datasets"]["C"]["bytes"] == r225.CKPT225_BYTES
+    assert lock["datasets"]["C"]["mount"] == K.expand(r225.CKPT225_MOUNT) and lock["datasets"]["C"]["bytes"] == r225.CKPT225_BYTES
     assert set(lock["datasets"]) == {"X", "Y", "C"}
-    assert "launch_gpu('/kaggle/working/timeout_status.json',cap=600,grace=2)" in code        # 600 s trainer limit unchanged
-    assert code.rindex("verify_lock()") < code.index("launch_gpu('/kaggle/working/timeout_status.json'")
+    assert K.expand("launch_gpu('@@KROOT@@/working/timeout_status.json',cap=600,grace=2)") in code        # 600 s trainer limit unchanged
+    assert code.rindex("verify_lock()") < code.index(K.expand("launch_gpu('@@KROOT@@/working/timeout_status.json'"))
     meta = json.loads((nb.parent / "kernel-metadata.json").read_text())
     assert meta["is_private"] is True and meta["enable_internet"] is False and meta["enable_gpu"] is True and meta["machine_shape"] == "NvidiaTeslaT4"
-    assert meta["id"] == "anjorosimoaj/vyra-y72fix-lambda05-packaged" and meta["id"] != "anjorosimoaj/vyra-resume300-packaged"
-    assert meta["dataset_sources"] == ["anjorosimoaj/vyra-x-bundle", "anjorosimoaj/vyra-y-bundle", r225.CKPT225_DATASET_ID]
+    assert meta["id"] == K.expand("@@KUSER@@/@@SLUG_KERNEL_Y72FIX@@") and meta["id"] != K.expand("@@KUSER@@/@@SLUG_KERNEL_RESUME300@@")
+    assert meta["dataset_sources"] == [K.expand("@@KUSER@@/@@SLUG_X_BUNDLE@@"), K.expand("@@KUSER@@/@@SLUG_Y_BUNDLE@@"), K.expand(r225.CKPT225_DATASET_ID)]
     report = json.loads((nb.parent.parent / "BUILD_REPORT.json").read_text())
     assert report["only_variable"] == {"name": "replay_lambda", "from": 0.25, "to": 0.5} and report["updates"] == {"from": 225, "to": 300}
     assert report["checkpoint_updates"] == [250, 275, 300] and report["no_upload"] and report["no_submission"]

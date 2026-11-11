@@ -20,8 +20,8 @@ from continuation import ContinuationGateError, _fail
 
 CKPT225_SHA256 = "a84d35bee3323cf60d0f0a09f0eece5ffb4c1e7bddbd196d4c478df15cb1b283"
 CKPT225_BYTES = 197237331
-CKPT225_DATASET_ID = "anjorosimoaj/vyra-resume300-ckpt225"
-CKPT225_MOUNT = "/kaggle/input/datasets/anjorosimoaj/vyra-resume300-ckpt225"
+CKPT225_DATASET_ID = "@@KUSER@@/@@SLUG_CKPT225@@"
+CKPT225_MOUNT = "@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT225@@"
 CKPT225_PATH = CKPT225_MOUNT + "/checkpoint_225.pt"
 RESUME_UPDATE = 225
 SAVED_LAMBDA = 0.25

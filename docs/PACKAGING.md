@@ -51,7 +51,7 @@ Training replay uses a 40-row artifact, hash
 `abd8d94d7e105deab2a19c461266c89ab308f7edf67b4394b638afdb7cb474d7`, 88749
 bytes. That file is not in the repository. The builder embeds those bytes in
 the notebook and the notebook checks the hash before writing them to
-`/kaggle/working/rehearsal_Y72_40.pt`. There is no `/submission` path and no
+`<kaggle-root>/working/rehearsal_Y72_40.pt`. There is no `/submission` path and no
 new dataset mount. The original 8 rows stay byte
 identical inside it and 32 rows are added. Replay still takes 2 rows each
 update, now `(2*s+j) % 40`, 350 presentations, 30 rows repeated 9 times and
@@ -70,10 +70,10 @@ receipt still stops before any forward.
 
 | File | How it reaches the notebook | Runtime path | Status |
 | --- | --- | --- | --- |
-| Notebook source, including treatment, gates, and the rehearsal bytes | The notebook Kaggle executes | decoded to `/kaggle/working/rehearsal_Y72_40.pt` only after the pinned SHA matches | Chosen transport. The failed job wrote other `/kaggle/working` assets before it died. |
+| Notebook source, including treatment, gates, and the rehearsal bytes | The notebook Kaggle executes | decoded to `<kaggle-root>/working/rehearsal_Y72_40.pt` only after the pinned SHA matches | Chosen transport. The failed job wrote other `<kaggle-root>/working` assets before it died. |
 | `rehearsal_Y72_40.pt` as a file beside the notebook | Not transported | `/submission/rehearsal_Y72_40.pt` | Observed `FileNotFoundError` on Kaggle. The CPU sandbox had invented that mount. It is no longer used. |
-| X bundle | Existing dataset attachment named in the kernel metadata | `/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle` | Documented package path. This failed job did not reach it. |
-| Y bundle | Existing dataset attachment named in the kernel metadata | `/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle` | Documented package path. This failed job did not reach it. |
+| X bundle | Existing dataset attachment named in the kernel metadata | `<kaggle-root>/input/datasets/<user>/<x-dataset-slug>` | Documented package path. This failed job did not reach it. |
+| Y bundle | Existing dataset attachment named in the kernel metadata | `<kaggle-root>/input/datasets/<user>/<y-dataset-slug>` | Documented package path. This failed job did not reach it. |
 | `/tools`, `/runtime` | CPU sandbox harness only | not read by the notebook | The harness mounts the notebook at `/tools/replay.ipynb` and does not create `/submission`. |
 
 No new dataset is declared and nothing here uploads one. A rehearsal dataset mount is not claimed.
@@ -85,9 +85,9 @@ worktree so private bytes are not written next to the source.
 
 ```bash
 python3 tools/experiment_packaging/validate_experiment_package.py \
-  --source-notebook prior_remote/vyra-replay175-approved.ipynb \
-  --x-archive archives/X/vyra-x-bundle.zip \
-  --y-archive archives/Y/vyra-y-bundle.zip \
+  --source-notebook prior_remote/<replay175-approved-kernel>.ipynb \
+  --x-archive archives/X/<x-dataset-slug>.zip \
+  --y-archive archives/Y/<y-dataset-slug>.zip \
   --builder-source sources/make_corpus_X.py \
   --archive-audit REMOTE_ARCHIVE_AUDIT.json \
   --replay-artifact /path/to/rehearsal_Y72_40.pt \
@@ -97,7 +97,7 @@ python3 tools/experiment_packaging/validate_experiment_package.py \
 ```
 
 `inputs` must already contain the extracted archive directories
-`vyra-x-bundle` and `vyra-y-bundle`. `--runtime` must contain `bin/python` for
+`<x-dataset-slug>` and `<y-dataset-slug>`. `--runtime` must contain `bin/python` for
 the CPU environment mounted read-only in the sandbox. `bwrap` must be on
 `PATH`. The builder provenance file has to match the pinned SHA. Nothing in
 this command uploads a notebook or starts a Kaggle job.
@@ -122,3 +122,20 @@ before any network call.
 The CPU preflight does not exercise the expert-union update. That update is
 covered by `tests/test_expert_union_replay.py` on a tiny CPU model. GPU kernels
 and a full training run are outside this gate.
+
+## Private Kaggle identifiers (not in the repository)
+
+The Kaggle username, the dataset and kernel slugs and the Kaggle filesystem root are not stored in any tracked
+file. Where this document writes `<user>`, `<x-dataset-slug>` and so on, the real values are in
+`kaggle_config.json` at the repository root. That file is gitignored and local only; the committed template is
+`kaggle_config.example.json`, and `VYRA_KAGGLE_CONFIG` can point at another location.
+
+* Tracked source uses tokens (`@@KUSER@@`, `@@KROOT@@`, `@@SLUG_X_BUNDLE@@`, ...). `tools/experiment_packaging/kaggle_config.py`
+  expands them. The builders expand every notebook asset, the notebook program and the dependency lock before hashing,
+  so a build with the real config is byte-identical to a build made when the literals were in the source.
+* Fail closed: a builder (or any module that expands a token) raises `KaggleConfigError` if the config is missing,
+  incomplete, uses an unknown token or leaves a token unexpanded. The placeholder template is refused by the builders
+  unless `VYRA_KAGGLE_ALLOW_EXAMPLE=1`, which `tests/conftest.py` sets only when no real config exists.
+* `tests/test_no_kaggle_identifiers.py` fails if any tracked file contains the username, a slug, a Kaggle filesystem path or a
+  Kaggle URL. Only `kaggle_config.example.json` is allowlisted.
+* Commits made before this change still contain the old values; history was not rewritten.

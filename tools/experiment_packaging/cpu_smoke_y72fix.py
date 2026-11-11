@@ -13,6 +13,7 @@ skipped and the eval-count comparison is recorded, not fatal. Nothing is uploade
 """
 import ast, json, shutil, subprocess, sys
 from pathlib import Path
+import kaggle_config as K
 
 nb, inputs, runtime, ckpt_dir, rehearsal, work = sys.argv[1:7]
 end = int(sys.argv[7]) if len(sys.argv) > 7 else 227
@@ -49,19 +50,19 @@ assert "'cuda'" not in (work / "treatment.py").read_text()
 (work / "gpu_guard.py").write_text("def require_t4(torch):\n    return {'stub':'CPU smoke, no GPU'}\n")
 (work / "SUBSTITUTIONS.json").write_text(json.dumps(rec, indent=1))
 shutil.copy2(rehearsal, work / "rehearsal_Y72_40.pt")
-x, y = inputs / "vyra-x-bundle", inputs / "vyra-y-bundle"
+x, y = inputs / K.expand("@@SLUG_X_BUNDLE@@"), inputs / K.expand("@@SLUG_Y_BUNDLE@@")
 cmd = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--clearenv",
        "--setenv", "PATH", "/runtime/bin:/usr/bin", "--setenv", "HOME", "/tmp", "--setenv", "CUDA_VISIBLE_DEVICES", "",
        "--setenv", "VYRA_PREFLIGHT_ONLY", "0", "--setenv", "VYRA_CONT_CPU_SMOKE", "1", "--setenv", "OMP_NUM_THREADS", "2",
-       "--setenv", "XROOT", "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
-       "--setenv", "YROOT", "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle",
+       "--setenv", "XROOT", K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
+       "--setenv", "YROOT", K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@"),
        "--ro-bind", "/usr", "/usr", "--ro-bind", "/lib", "/lib"] + (["--ro-bind", "/lib64", "/lib64"] if Path("/lib64").is_dir() else []) + [
        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--ro-bind", str(runtime), "/runtime",
-       "--ro-bind", str(x), "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
-       "--ro-bind", str(y), "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle",
-       "--ro-bind", str(ckpt_dir), "/kaggle/input/datasets/anjorosimoaj/vyra-resume300-ckpt225",
-       "--bind", str(work), "/kaggle/working", "--chdir", "/kaggle/working",
-       "/runtime/bin/python", "-u", "/kaggle/working/treatment.py"]
+       "--ro-bind", str(x), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
+       "--ro-bind", str(y), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@"),
+       "--ro-bind", str(ckpt_dir), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT225@@"),
+       "--bind", str(work), K.expand("@@KROOT@@/working"), "--chdir", K.expand("@@KROOT@@/working"),
+       "/runtime/bin/python", "-u", K.expand("@@KROOT@@/working/treatment.py")]
 rc = subprocess.run(cmd, timeout=3300).returncode
 r = json.loads((work / "replay_out" / "result.json").read_text())
 print("RC", rc, "STATUS", r.get("status"))

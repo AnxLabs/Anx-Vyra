@@ -25,8 +25,8 @@ import torch
 
 CKPT200_SHA256 = "8542c3405309a5fcf9e419a6e3dd733beab346765fa7bd9cbdd61226dd867e81"
 CKPT200_BYTES = 197225718
-CKPT200_DATASET_ID = "anjorosimoaj/vyra-expanded40-200u-checkpoint"
-CKPT200_MOUNT = "/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint"
+CKPT200_DATASET_ID = "@@KUSER@@/@@SLUG_CKPT200@@"
+CKPT200_MOUNT = "@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT200@@"
 CKPT200_PATH = CKPT200_MOUNT + "/checkpoint_200.pt"
 RESUME_UPDATE = 200
 # Accelerator of the 200-update run (kernel metadata machine_shape "NvidiaTeslaT4" == "GPU T4 x2" in the Kaggle

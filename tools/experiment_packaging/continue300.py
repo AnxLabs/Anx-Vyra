@@ -19,11 +19,12 @@ and the original eval are untouched. What changes:
   continuation.dump_full writes predictions, retention counts and a complete
   v2 checkpoint. The stop rule is evaluated on exact integer counts.
 """
+import kaggle_config as K
 HEAD = "HARD=600; SOFT=598; STEPS=200; RB=2; EVAL_AT={75,125,175,200}"
 HEAD_NEW = (
-    "HARD=600; SOFT=598; STEPS=300; START=200; RB=2; EVAL_AT={225,250,275,300}\n"
-    "CKPT_PATH='/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint/checkpoint_200.pt'\n"
-    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'"
+    K.expand("HARD=600; SOFT=598; STEPS=300; START=200; RB=2; EVAL_AT={225,250,275,300}\n"
+    "CKPT_PATH='@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT200@@/checkpoint_200.pt'\n"
+    "CPU_SMOKE=os.environ.get('VYRA_CONT_CPU_SMOKE')=='1'")
 )
 PLAN_CHECK = "  if len(SX['plan'])<STEPS: stop(f'plan too short {len(SX[\"plan\"])}<{STEPS}')\n"
 BASE_A = "  m=make(); t=time.time(); R['baseline']=eval_block(m); R['baseline_rehearsal']=preclip_diag.rehearsal_readout(m, RY['rows'], RY['mask']); R['baseline_eval_s']=time.time()-t; save()\n"
@@ -42,21 +43,21 @@ EVAL_LINES = (
 VERDICT = "  T=R['arms']['treatment']['final']\n"
 
 _PLAN_NEW = (
-    "  import importlib.util as _pxilu\n"
-    "  _pxspec=_pxilu.spec_from_file_location('plan_extension','/kaggle/working/plan_extension.py')\n"
+    K.expand("  import importlib.util as _pxilu\n"
+    "  _pxspec=_pxilu.spec_from_file_location('plan_extension','@@KROOT@@/working/plan_extension.py')\n"
     "  _pxmod=_pxilu.module_from_spec(_pxspec); _pxspec.loader.exec_module(_pxmod); plan_extension=_pxmod\n"
     "  try:\n"
     "      SX['plan']=plan_extension.build_extended_plan(SX, STEPS)\n"
     "  except Exception as _pe: stop('PLAN_EXTENSION '+repr(_pe))\n"
-    "  R['plan_extension']={'policy':plan_extension.POLICY_VERSION,'prefix_sha256':plan_extension.plan_sha256(SX['plan'][:200]),'full_sha256':plan_extension.plan_sha256(SX['plan']),'length':len(SX['plan'])}; save()\n"
+    "  R['plan_extension']={'policy':plan_extension.POLICY_VERSION,'prefix_sha256':plan_extension.plan_sha256(SX['plan'][:200]),'full_sha256':plan_extension.plan_sha256(SX['plan']),'length':len(SX['plan'])}; save()\n")
 )
 
 _BASE_NEW = (
-    "  import importlib.util as _cnilu\n"
+    K.expand("  import importlib.util as _cnilu\n"
     "  def _cn_load(_n):\n"
-    "      _sp=_cnilu.spec_from_file_location(_n,'/kaggle/working/'+_n+'.py'); _mo=_cnilu.module_from_spec(_sp); _sp.loader.exec_module(_mo); return _mo\n"
+    "      _sp=_cnilu.spec_from_file_location(_n,'@@KROOT@@/working/'+_n+'.py'); _mo=_cnilu.module_from_spec(_sp); _sp.loader.exec_module(_mo); return _mo\n"
     "  cont=_cn_load('continuation'); stop_rule=_cn_load('stop_rule')\n"
-    "  _cspec=_cnilu.spec_from_file_location('x64_checkpoint','/kaggle/working/x64_checkpoint.py')\n"
+    "  _cspec=_cnilu.spec_from_file_location('x64_checkpoint','@@KROOT@@/working/x64_checkpoint.py')\n"
     "  _cmod=_cnilu.module_from_spec(_cspec); _cspec.loader.exec_module(_cmod); x64_checkpoint=_cmod\n"
     "  m=make(); opt=rv.make_optimizer(m); rv.LR=3e-4\n"
     "  try:\n"
@@ -72,8 +73,8 @@ _BASE_NEW = (
     "      R['restoration_check']=cont.check_baseline_restoration(m, _bx, _bc, R['baseline'], strict=not CPU_SMOKE, x64_ck=x64_checkpoint, baseline_x64=stop_rule.BASELINE_X64)\n"
     "  except cont.ContinuationGateError as _ge: stop('CONTINUATION_GATE '+str(_ge))\n"
     "  HIST={START:{'x64':_bx,'counts':_bc}}\n"
-    "  PROV={'resumed_from_sha256':cont.CKPT200_SHA256,'resumed_from_update':START,'plan':R['plan_extension'],'treatment_sha256':R['hashes']['treatment.py'],'continuation_sha256':hashlib.sha256(Path('/kaggle/working/continuation.py').read_bytes()).hexdigest(),'disclosure_declared_in':'continuation.DISCLOSURE'}\n"
-    "  save()\n"
+    "  PROV={'resumed_from_sha256':cont.CKPT200_SHA256,'resumed_from_update':START,'plan':R['plan_extension'],'treatment_sha256':R['hashes']['treatment.py'],'continuation_sha256':hashlib.sha256(Path('@@KROOT@@/working/continuation.py').read_bytes()).hexdigest(),'disclosure_declared_in':'continuation.DISCLOSURE'}\n"
+    "  save()\n")
 )
 
 _EVAL_NEW = (
@@ -105,7 +106,7 @@ def apply_continue300(source):
     out = out.replace(BASE_A, _BASE_NEW, 1)
     out = out.replace(BASE_B, "  print('BASE',R['baseline'],flush=True)\n", 1)
     # x64_checkpoint is now loaded before the baseline; drop the later duplicate loader pair.
-    spec_line = "  _cspec=_ilu.spec_from_file_location('x64_checkpoint','/kaggle/working/x64_checkpoint.py')\n"
+    spec_line = K.expand("  _cspec=_ilu.spec_from_file_location('x64_checkpoint','@@KROOT@@/working/x64_checkpoint.py')\n")
     _once(out, spec_line, "x64_spec_line")
     out = out.replace(spec_line + X64_LOADER, "", 1)
     out = out.replace(ARM_INIT, ARM_INIT_NEW, 1)

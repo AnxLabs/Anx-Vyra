@@ -13,7 +13,7 @@ treatment exactly as `build.py` does and then rewrites it with
 | item | value |
 | --- | --- |
 | checkpoint | `checkpoint_200.pt`, 197225718 bytes, sha256 `8542c3405309a5fcf9e419a6e3dd733beab346765fa7bd9cbdd61226dd867e81` |
-| planned mount | `/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint/checkpoint_200.pt` (dataset `anjorosimoaj/vyra-expanded40-200u-checkpoint`, private) |
+| planned mount | `<kaggle-root>/input/datasets/<user>/<ckpt200-dataset-slug>/checkpoint_200.pt` (private dataset; real values in the local `kaggle_config.json`) |
 | updates | 201..300, one treatment arm, seed/LR/clip/lambda/replay unchanged |
 | checkpoints | 225, 250, 275, 300 (schema v2, complete state) |
 | limits | trainer 600 s, notebook 900 s, unchanged |

@@ -1,0 +1,17 @@
+{
+  "example": true,
+  "username": "example-user",
+  "root": "/example-root",
+  "local_inputs": "/example-local-inputs",
+  "slugs": {
+    "x_bundle": "example-x-dataset",
+    "y_bundle": "example-y-dataset",
+    "ckpt200": "example-ckpt200-dataset",
+    "ckpt225": "example-ckpt225-dataset",
+    "kernel_replay175": "example-kernel-replay175",
+    "kernel_replay175_approved": "example-kernel-replay175-approved",
+    "kernel_resume300": "example-kernel-resume300",
+    "kernel_y72fix": "example-kernel-y72fix",
+    "kernel_y72fix2": "example-kernel-y72fix2"
+  }
+}

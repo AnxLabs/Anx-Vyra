@@ -11,12 +11,13 @@ import time
 from pathlib import Path
 
 from validate_package import validate
+import kaggle_config as K
 
 
 CASES = {
     "missing_dependency": ("BOOTSTRAP_ASSET_SET_MISMATCH", "missing"),
     "corrupt_hash": ("BOOTSTRAP_CORRUPT entry.py", "corrupt"),
-    "wrong_path": ("missing dataset root anjorosimoaj/vyra-x-bundle", "path"),
+    "wrong_path": (K.expand("missing dataset root @@KUSER@@/@@SLUG_X_BUNDLE@@"), "path"),
 }
 
 
@@ -79,7 +80,7 @@ def run(package, inputs, work_root, logs, runtime):
             for i, key in enumerate(mapping.value.keys):
                 if isinstance(key, ast.Name) and key.id == "XID":
                     mapping.value.values[i] = ast.Constant(
-                        "/kaggle/input/datasets/anjorosimoaj/WRONG-X-PATH"
+                        K.expand("@@KROOT@@/input/datasets/@@KUSER@@/WRONG-X-PATH")
                     )
         target = work_root / name
         mutated = json.loads(json.dumps(original))

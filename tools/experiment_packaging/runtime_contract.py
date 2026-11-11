@@ -1,7 +1,7 @@
 """Per-file contract for what the notebook may read at runtime.
 
 Observed on the failed Kaggle job (cee1dbc): papermill executed the notebook,
-assets were written under /kaggle/working, and
+assets were written under the notebook working directory, and
 Path('/submission/rehearsal_Y72_40.pt') raised FileNotFoundError. Kaggle did
 not provide /submission. That path existed only in the CPU sandbox.
 
@@ -14,11 +14,12 @@ import base64
 import hashlib
 
 from rehearsal_artifact import PINNED_BYTES, PINNED_SHA256
+import kaggle_config as K
 
-REHEARSAL_WORKING_PATH = "/kaggle/working/rehearsal_Y72_40.pt"
+REHEARSAL_WORKING_PATH = K.expand("@@KROOT@@/working/rehearsal_Y72_40.pt")
 DOCUMENTED_DATASET_MOUNTS = (
-    "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
-    "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle",
+    K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
+    K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@"),
 )
 # Harness-only. The notebook must not read these. /runtime is an import
 # allowlist prefix inside the trainer text, so it is not forbidden as a

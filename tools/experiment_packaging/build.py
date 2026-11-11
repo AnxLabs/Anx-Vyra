@@ -18,6 +18,9 @@ from update200 import apply_update200
 from name_order import used_before_binding
 from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
 from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
+import kaggle_config as K
+
+K.load()  # fail closed at import if the private kaggle config is missing
 
 BUILDER_SHA = "a34984d3aa60100cf282c3e98d8a55409ae6ed0fc0f543d93d9d0ba463e0b5cd"
 
@@ -39,8 +42,8 @@ def require_builder(path):
 def check_archives(x_archive, y_archive, audit):
     datasets = {}
     for role, path, slug in (
-        ("X", x_archive, "vyra-x-bundle"),
-        ("Y", y_archive, "vyra-y-bundle"),
+        ("X", x_archive, K.expand("@@SLUG_X_BUNDLE@@")),
+        ("Y", y_archive, K.expand("@@SLUG_Y_BUNDLE@@")),
     ):
         path = Path(path)
         if not path.is_file():
@@ -56,8 +59,8 @@ def check_archives(x_archive, y_archive, audit):
         if actual != audit[role]["files"]:
             raise ValueError("ARCHIVE_CONTENT_CHANGED " + role)
         datasets[role] = {
-            "id": "anjorosimoaj/" + slug,
-            "mount": "/kaggle/input/datasets/anjorosimoaj/" + slug,
+            "id": K.expand("@@KUSER@@/") + slug,
+            "mount": K.expand("@@KROOT@@/input/datasets/@@KUSER@@/") + slug,
             "archive_sha256": sha(path),
             "files": actual,
         }
@@ -69,7 +72,7 @@ def prepare_treatment(treatment, builder_text):
         raise ValueError("TREATMENT_BUILDER_PIN_MISSING")
     treatment = treatment.replace(
         "BX/'make_corpus_X.py':",
-        "Path('/kaggle/working/make_corpus_X.py'):",
+        K.expand("Path('@@KROOT@@/working/make_corpus_X.py'):"),
     )
     gpu_block = (
         "if not torch.cuda.is_available(): stop('GPU unavailable; no CPU fallback')\n"
@@ -96,7 +99,7 @@ def prepare_treatment(treatment, builder_text):
     before = "  m=make(); t=time.time(); R['baseline']=eval_block(m);"
     if before not in treatment:
         raise ValueError("TREATMENT_BASELINE_ANCHOR_MISSING")
-    init = """  if PREFLIGHT_ONLY:
+    init = K.expand("""  if PREFLIGHT_ONLY:
       rv.LR=3e-4
       model=make(); opt=rv.make_optimizer(model)
       if any(p.device.type!='cpu' for p in model.parameters()): stop('CPU init escaped device restriction')
@@ -109,13 +112,13 @@ def prepare_treatment(treatment, builder_text):
       assert tuple(bt.shape)==(6,512) and tuple(rt.shape)==(2,512)
       assert tuple(bm.shape)==(6,510) and tuple(rm.shape)==(2,510)
       imports={k:str(v.__file__) for k,v in sys.modules.items() if getattr(v,'__file__',None)}
-      allowed=('/runtime/','/usr/','/kaggle/')
+      allowed=('/runtime/','/usr/','@@KROOT@@/')
       unexpected={k:v for k,v in imports.items() if v.startswith('/') and not v.startswith(allowed)}
       if unexpected: stop('unexpected import origins '+repr(unexpected))
       R['initialization']={'model_tensors':len(model.state_dict()),'params':sum(p.numel() for p in model.parameters()),'optimizer':type(opt).__name__,'optimizer_states':len(opt.state),'optimizer_steps':0,'model_forward_calls':0,'device':'cpu','batch_shape':list(bt.shape),'replay_shape':list(rt.shape),'imports':imports,'python':sys.version,'torch':torch.__version__}
       R['status']='PREFLIGHT_INITIALIZED_NO_TRAINING'
       R['elapsed_s']=time.time()-T0;save();print('PREFLIGHT_INITIALIZED_NO_TRAINING',R['elapsed_s'],flush=True);sys.exit(0)
-"""
+""")
     treatment = treatment.replace(before, init + before)
     treatment = apply_expert_union(treatment)
     treatment = apply_replay_telemetry(treatment)
@@ -125,6 +128,7 @@ def prepare_treatment(treatment, builder_text):
 
 
 def build(args):
+    K.require_real()
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
     source = Path(args.source_notebook)
@@ -145,17 +149,17 @@ def build(args):
     preflight = preflight.replace("'X/make_corpus_X.py':", "'WORK/make_corpus_X.py':")
     preflight = preflight.replace(
         "roots=resolve(mapping);hashes={}",
-        "roots=resolve(mapping);roots['WORK']=Path('/kaggle/working');hashes={}",
+        K.expand("roots=resolve(mapping);roots['WORK']=Path('@@KROOT@@/working');hashes={}"),
     )
     assets["input_preflight.py"] = preflight
     treatment, _builder = prepare_treatment(assets["treatment.py"], builder_text)
     assets["treatment.py"] = treatment
-    assets["dependency_gate.py"] = Path(__file__).with_name("dependency_gate.py").read_text()
-    assets["replay_telemetry.py"] = Path(__file__).with_name("replay_telemetry.py").read_text()
-    assets["preclip_diag.py"] = Path(__file__).with_name("preclip_diag.py").read_text()
-    assets["x64_checkpoint.py"] = Path(__file__).with_name("x64_checkpoint.py").read_text()
-    assets["rehearsal_artifact.py"] = Path(__file__).with_name("rehearsal_artifact.py").read_text()
-    assets["rehearsal_Y72_40_manifest.json"] = Path(__file__).with_name("rehearsal_Y72_40_manifest.json").read_text()
+    assets["dependency_gate.py"] = K.read_asset(Path(__file__).with_name("dependency_gate.py"))
+    assets["replay_telemetry.py"] = K.read_asset(Path(__file__).with_name("replay_telemetry.py"))
+    assets["preclip_diag.py"] = K.read_asset(Path(__file__).with_name("preclip_diag.py"))
+    assets["x64_checkpoint.py"] = K.read_asset(Path(__file__).with_name("x64_checkpoint.py"))
+    assets["rehearsal_artifact.py"] = K.read_asset(Path(__file__).with_name("rehearsal_artifact.py"))
+    assets["rehearsal_Y72_40_manifest.json"] = K.read_asset(Path(__file__).with_name("rehearsal_Y72_40_manifest.json"))
     audit = json.loads(Path(args.archive_audit).read_text())
     datasets = check_archives(args.x_archive, args.y_archive, audit)
     lock = {
@@ -176,27 +180,30 @@ notebook_start=time.monotonic()
 """
     program += "assets=" + repr(assets) + "\n"
     program += "asset_hashes=" + repr({name: hashlib.sha256(text.encode()).hexdigest() for name, text in assets.items()}) + "\n"
-    program += """if set(assets)!=set(asset_hashes): raise ValueError('BOOTSTRAP_ASSET_SET_MISMATCH')
+    program += K.expand("""if set(assets)!=set(asset_hashes): raise ValueError('BOOTSTRAP_ASSET_SET_MISMATCH')
 for name,text in assets.items():
     if hashlib.sha256(text.encode()).hexdigest()!=asset_hashes[name]:raise ValueError('BOOTSTRAP_CORRUPT '+name)
-    Path('/kaggle/working',name).write_text(text)
-sys.path.insert(0,'/kaggle/working')
-""" + rehearsal_bootstrap(replay_path.read_bytes()) + """from dependency_gate import verify_lock
+    Path('@@KROOT@@/working',name).write_text(text)
+sys.path.insert(0,'@@KROOT@@/working')
+""") + rehearsal_bootstrap(replay_path.read_bytes()) + K.expand("""from dependency_gate import verify_lock
 verified=verify_lock()
-Path('/kaggle/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
+Path('@@KROOT@@/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
 from input_preflight import validate, XID, YID
-mapping={XID:'/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle',YID:'/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle'}
+mapping={XID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@',YID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@'}
 validation,roots=validate(mapping)
-Path('/kaggle/working/input_validation.json').write_text(json.dumps(validation,indent=2))
+Path('@@KROOT@@/working/input_validation.json').write_text(json.dumps(validation,indent=2))
 os.environ['XROOT']=str(roots['X']);os.environ['YROOT']=str(roots['Y'])
 if os.environ.get('VYRA_PREFLIGHT_ONLY')!='1':
     print(subprocess.check_output(['nvidia-smi','--query-gpu=name,memory.total','--format=csv,noheader'],text=True))
 from entry import launch_gpu
-result=launch_gpu('/kaggle/working/timeout_status.json',cap=600,grace=2)
+result=launch_gpu('@@KROOT@@/working/timeout_status.json',cap=600,grace=2)
 print('HARNESS',result)
-Path('/kaggle/working/notebook_timing.json').write_text(json.dumps({'notebook_cell_wall_s':time.monotonic()-notebook_start,'platform_timeout_requires_CLI_flag':900,'preflight_only':os.environ.get('VYRA_PREFLIGHT_ONLY')=='1','coverage':'queue/provisioning not bounded'}))
+Path('@@KROOT@@/working/notebook_timing.json').write_text(json.dumps({'notebook_cell_wall_s':time.monotonic()-notebook_start,'platform_timeout_requires_CLI_flag':900,'preflight_only':os.environ.get('VYRA_PREFLIGHT_ONLY')=='1','coverage':'queue/provisioning not bounded'}))
 if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess failed/timed out; no retry')
-"""
+""")
+    K.assert_clean(program, "notebook program")
+    for _name, _text in assets.items():
+        K.assert_clean(_text, "asset " + _name)
     assert_notebook_contract(program)
     ast.parse(program)
     for name, text in assets.items():
@@ -223,8 +230,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
     kernel.mkdir(exist_ok=True)
     (kernel / "replay.ipynb").write_text(json.dumps(built, indent=1, sort_keys=True) + "\n")
     meta = {
-        "id": "anjorosimoaj/vyra-replay175-packaged",
-        "title": "vyra-replay175-packaged",
+        "id": K.expand("@@KUSER@@/@@SLUG_KERNEL_REPLAY175@@"),
+        "title": K.expand("@@SLUG_KERNEL_REPLAY175@@"),
         "code_file": "replay.ipynb",
         "language": "python",
         "kernel_type": "notebook",

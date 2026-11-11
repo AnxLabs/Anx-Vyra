@@ -12,7 +12,10 @@ from pathlib import Path
 
 import pytest
 
-X = Path(os.environ.get("VYRA_X_BUNDLE", "/workspace/vera/packaging-rootfix-20261106/inputs/vyra-x-bundle"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "experiment_packaging"))
+import kaggle_config as K  # noqa: E402
+
+X = Path(os.environ.get("VYRA_X_BUNDLE", K.expand("@@LOCAL_INPUTS@@/@@SLUG_X_BUNDLE@@")))
 
 
 @pytest.mark.skipif(not (X / "train_X.pt").is_file(), reason="private X bundle not available (set VYRA_X_BUNDLE)")

@@ -8,11 +8,11 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def verify_lock(lock_path="/kaggle/working/dependency_lock.json"):
+def verify_lock(lock_path="@@KROOT@@/working/dependency_lock.json"):
     lock = json.loads(Path(lock_path).read_text())
     checked = {}
     for rel, expected in lock["assets"].items():
-        path = Path("/kaggle/working") / rel
+        path = Path("@@KROOT@@/working") / rel
         if not path.is_file():
             raise ValueError("MISSING_ASSET " + rel)
         if sha(path) != expected:

@@ -9,10 +9,11 @@ right dataset but wrong file name. Nothing is uploaded or submitted.
 """
 import hashlib, json, shutil, subprocess, sys, time
 from pathlib import Path
+import kaggle_config as K
 
 package, inputs, runtime, ckpt, work_root, logs = map(Path, sys.argv[1:7])
 tools = Path(__file__).parent.resolve()
-MOUNT = "/kaggle/input/datasets/anjorosimoaj/vyra-expanded40-200u-checkpoint"
+MOUNT = K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT200@@")
 logs.mkdir(parents=True, exist_ok=True)
 
 
@@ -27,11 +28,11 @@ def command(work, ckpt_mount):
             "--ro-bind", str(runtime), "/runtime",
             "--ro-bind", str(tools / "execute_notebook.py"), "/tools/execute_notebook.py",
             "--ro-bind", str(package / "kernel" / "replay.ipynb"), "/tools/replay.ipynb",
-            "--ro-bind", str(inputs / "vyra-x-bundle"), "/kaggle/input/datasets/anjorosimoaj/vyra-x-bundle",
-            "--ro-bind", str(inputs / "vyra-y-bundle"), "/kaggle/input/datasets/anjorosimoaj/vyra-y-bundle"]
+            "--ro-bind", str(inputs / K.expand("@@SLUG_X_BUNDLE@@")), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
+            "--ro-bind", str(inputs / K.expand("@@SLUG_Y_BUNDLE@@")), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@")]
     if ckpt_mount is not None:
         cmd += ["--ro-bind", str(ckpt_mount), MOUNT]
-    cmd += ["--bind", str(work), "/kaggle/working", "--chdir", "/kaggle/working",
+    cmd += ["--bind", str(work), K.expand("@@KROOT@@/working"), "--chdir", K.expand("@@KROOT@@/working"),
             "/runtime/bin/python", "-I", "/tools/execute_notebook.py", "/tools/replay.ipynb"]
     return cmd
 

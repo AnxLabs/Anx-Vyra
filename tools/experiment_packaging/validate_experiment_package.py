@@ -18,6 +18,7 @@ from build import build
 from negative_tests import run as run_negative
 from validate_package import validate
 from verify_receipt import verify, write_receipt
+import kaggle_config as K
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -54,7 +55,7 @@ def assess(args):
             "output": str(output),
         }
     incomplete = []
-    for relative in ("vyra-x-bundle", "vyra-y-bundle"):
+    for relative in (K.expand("@@SLUG_X_BUNDLE@@"), K.expand("@@SLUG_Y_BUNDLE@@")):
         path = Path(args.inputs) / relative
         if not path.is_dir():
             incomplete.append(str(path))
