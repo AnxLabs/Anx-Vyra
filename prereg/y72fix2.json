@@ -1,0 +1,170 @@
+{
+ "rule_id": "vyra-y72fix2-pertask-v2",
+ "status": "SPECIFICATION ONLY - pre-registered by FORGE (Grok Bot) before any update 226..300 with this change exists on GPU. No notebook or run package is built. NOT approved to build or run.",
+ "registered_by": "FORGE (Grok Bot), CPU-only design step of Nov 11 2026 (AJ's go via VERA card t603s2484, 2:55 America/Edmonton, UTC-6)",
+ "evidence": "prereg/y72fix2_evidence/{probe1_drift,probe2_fisher,arms_summary}.json and prereg/y72fix2.md",
+ "question": "Does clipping each task's gradient separately (per-task clip 0.5 on the X gradient and on lambda*Y gradient, lambda stays 0.25) instead of one global clip hold Y72 on the pre-registered 600-segment held-out set while X64 acquisition continues?",
+ "chosen_fix": "per-task gradient clip (a stronger change than replay weight: it changes how the two tasks share the update, not only how much replay there is)",
+ "design": {
+  "only_variable": "gradient combination: global clip 1.0 on (gx + 0.25*gy)  ->  per-task clip tau on gx and on 0.25*gy, summed (combined norm <= 2*tau = 1.0 by the triangle inequality)",
+  "task_clip": 0.5,
+  "replay_lambda": 0.25,
+  "replay_rows_per_update": 2,
+  "dedicated_replay_budget": "NOT added: the probe arms did not need it, and adding a second variable would make a pass uninterpretable",
+  "resume_from": {
+   "update": 225,
+   "file": "checkpoint_225.pt",
+   "sha256": "a84d35bee3323cf60d0f0a09f0eece5ffb4c1e7bddbd196d4c478df15cb1b283",
+   "bytes": 197237331,
+   "model_state_sha256": "0990d7c25ec3108bd05f214e1cbfb5495cf12cfceec68e9fddfd7f404bc61482"
+  },
+  "updates": "226..300 (75 updates), evals at 250, 275, 300, always stops at 300, one report, no retry",
+  "unchanged": [
+   "plan and pinned hashes",
+   "SliceAdam, LR 3e-4, expert union",
+   "restored v2 state incl. optimizer state and RNG",
+   "data, held-out sets (including the 600-segment set, hash-verified), evaluation, seed 0",
+   "no penalty term, no frozen parameter, no projection"
+  ],
+  "hyperparameter_justification": {
+   "task_clip 0.5": "value fixed on Nov 10 in prereg/pertask_clip_v1.json (before this evidence existed) so it is not tuned on the arms below; with global clip 1.0 the replay share of the update norm is 11-29% (clip binds on 96-100% of updates), with per-task 0.5 it is 28-46%, and the X step is ~0.6x as large",
+   "lambda 0.25": "unchanged so the control (lambda 0.25 global clip) differs in exactly one thing"
+  },
+  "paired_controls": "observed lambda 0.25 and lambda 0.5 global-clip GPU trajectories (non-gating)"
+ },
+ "arithmetic": {
+  "rule": "integer cross-multiplication only; no float, no rounding",
+  "operators": ">= for every floor and the gain threshold",
+  "module": "tools/experiment_packaging/y72fix2_gates.py"
+ },
+ "gates": {
+  "R_retention": {
+   "text": "sum over checkpoints 250, 275, 300 of Y72 segment-exact on the 600-segment set >= 1440 of 1800 AND every checkpoint >= 432 of 600",
+   "sum3": 1440,
+   "each_checkpoint": 432,
+   "rule_reused": "vyra-y72-heldout-v2-gate-v1",
+   "boundary": {
+    "sum3": {
+     "1440": true,
+     "1439": false
+    },
+    "each": {
+     "432": true,
+     "431": false
+    }
+   }
+  },
+  "A_acquisition": {
+   "text": "X64 held-out segment-exact >= 11 of 240 at EVERY checkpoint AND X64 held-out token gain 225 -> 300 >= 7.0 pp (tokens_correct(300) >= 1553 of 1920, from 1418)",
+   "x64_seg_each": 11,
+   "tokens_at_300_min": 1553,
+   "gain_tenths_pp": 70,
+   "boundary": {
+    "seg": {
+     "11": true,
+     "10": false
+    },
+    "tokens_at_300": {
+     "1553": true,
+     "1552": false
+    }
+   },
+   "nongating_report": "the 10.0 pp rule of the lambda 0.5 run (tokens >= 1610) is reported but does not gate",
+   "justification": "threshold inherited unchanged from prereg/pertask_clip_v1.json (registered Nov 10, before this evidence): the per-task clip is expected to give ~0.6x the X progress, so 7.0 pp = half of the control's 14.0 pp gain"
+  },
+  "N_nonregression": {
+   "text": "X32 held-out >= 128/320 and X109 >= 90/120 at EVERY checkpoint",
+   "x32_min": 128,
+   "x109_min": 90,
+   "boundary": {
+    "X32": {
+     "128": true,
+     "127": false
+    },
+    "X109": {
+     "90": true,
+     "89": false
+    }
+   }
+  }
+ },
+ "verdict_table": {
+  "SUCCESS": "R and A and N",
+  "FAIL_RETENTION": "not R, A, N",
+  "FAIL_ACQUISITION": "R, not A, N",
+  "FAIL_NONREGRESSION": "R, A, not N",
+  "other_combinations": "FAIL_<failed gates joined by _>",
+  "NOT_EVALUATED_BEFORE_300": "history lacks any of 250, 275, 300"
+ },
+ "selection_evidence_summary": {
+  "kind": "CPU probes, not a run. Eval/step probes with LAB2_CBWR=0 (not bit-reproducible), single trajectory per arm from the sha256-verified update-225 checkpoint, plan updates 225..299.",
+  "calibration": "CPU reproduces the GPU at update 250 exactly for the two controls (lambda 0.25: Y600 363, X64 29, tokens 1542; lambda 0.5: 450, 17, 1532); later checkpoints diverge (lambda 0.25 CPU 395/324 vs GPU 390/454 at 275/300), so CPU trajectories are samples of a chaotic system, not predictions of the GPU run",
+  "conflict_map": "mean-gradient cosine X vs Y at the 225 checkpoint: -0.49 overall, -0.57 layer 0, -0.42 layer 1, -0.48 embed, about 0 in layers 2-7 (probe2)",
+  "fisher": "99% of the Y Fisher mass sits in embed + layers 0-2; top 1% of coordinates hold 79%; X and Y Fisher are almost the same coordinates (Spearman 0.82; top-1% overlap 61% vs 1% by chance) so there is no disjoint set to protect",
+  "drift_localisation": "the 225->250 drift is diffuse (~4% relative in every tensor type, 73% of squared norm in FFN) but its damage is local: undoing only layer 0 restores Y (486 vs 490 at 225) and also erases the X64 gain (12 vs 29); no hybrid beats straight interpolation back toward 225 (alpha 0.5: Y 481, X64 21); Fisher-top-2% revert Y 476, X64 17; random 2% Y 371",
+  "arms": "see prereg/y72fix2_evidence/arms_summary.json; full 75-update arms: global lambda 0.25 (1082 sum; GPU 1207), lambda 0.5 (1245; GPU 1291), L2 anchor mu 1 (1305, X64 collapses to 2 at 250, tokens below the 225 level), freeze layers 0-1 q/k (904), per-task clip 0.5 (1575) and its perturbation replicate (1539); 25-update screens at 250 only: L2 mu 0.3 (487), EWC mu 1 (487, X64 at the floor 11), Fisher-2% freeze (472), PCGrad (360)",
+  "chosen_arm_cpu_trajectories": {
+   "pertask_t05": {
+    "Y600": [
+     528,
+     519,
+     528
+    ],
+    "sum3": 1575,
+    "x64_seg": [
+     13,
+     28,
+     27
+    ],
+    "x64_tokens_300": 1624,
+    "x32_300": 213,
+    "x109_300": 114
+   },
+   "pertask_t05_pert1": {
+    "Y600": [
+     528,
+     517,
+     494
+    ],
+    "sum3": 1539,
+    "x64_seg": [
+     13,
+     28,
+     41
+    ],
+    "x64_tokens_300": 1657,
+    "x32_300": 233,
+    "x109_300": 111
+   },
+   "both_pass_all_gates_in_this_rule": true
+  },
+  "limitations": [
+   "winner chosen from ~9 arms with one trajectory each (winner's curse); mitigated by tau 0.5 being fixed on Nov 10 and by the margin (+99 to +135 over the gate)",
+   "the perturbation replicate only decorrelates after ~50 updates (identical at 250, differs by 2 at 275, 34 at 300), so there are about 1.5 independent samples, not 2",
+   "CPU to GPU transfer is unverified; the same CPU path was off by 130 segments from the GPU at 300 for the control",
+   "probes used non-CBWR CPU math and are not bit-reproducible"
+  ]
+ },
+ "expected_effect_vs_noise": {
+  "effect": "CPU pertask sums 1575 / 1539 vs CPU lambda 0.25 control 1082 (+493 / +457) and vs GPU lambda 0.25 1207 (+368 / +332) and GPU lambda 0.5 1291 (+284 / +248) segments of 1800",
+  "measured_noise": "mean-of-3 cluster SE 8.3-9.0 segments (sum SE ~25-27) with a shared component between checkpoints (registered prediction 5.3-6.8 was wrong); single-checkpoint SD 9.3-9.7",
+  "reading": "the effect is 9-19 sum-SEs of measurement noise and the observed sums clear the gate by 99-135 (4-5 sum-SEs). Measurement noise is therefore not the limiting factor; training-trajectory noise is: CPU lambda 0.25 differed from the GPU run by 130 segments at update 300, and the two pertask trajectories by 34. Y level at 250/275 is above the 225 starting level (490) in both pertask runs, i.e. the fix is not marginal on Y"
+ },
+ "pass_probability": {
+  "point": 0.6,
+  "plausible_range": [
+   0.4,
+   0.8
+  ],
+  "basis": "judgment, not a computed quantity: R about 0.85-0.9 (margin 99-135 vs trajectory spread of tens of segments), A about 0.75-0.8 (the tight gate: X64 held-out was 13 at update 250 against a floor of 11, and tokens at 300 were 1624/1657 against 1553; the CPU matched the GPU exactly at 250 for both controls so 13 is likely reproduced, but 275/300 are not), N about 0.95; combined with positive correlation",
+  "plain_statement": "This design is expected to pass retention clearly if the CPU picture transfers; it is not expected to deliver the control's X64 acquisition (27-41 vs 92 held-out exact at 300). A pass would mean Y72 is held at the cost of a much slower X64, which meets the registered floors but is a trade-off, not a free fix."
+ },
+ "not_gating": [
+  "paired differences vs the lambda 0.25 and 0.5 trajectories",
+  "per-update pre-clip norms",
+  "X64 train counts",
+  "Y72 200-set counts",
+  "router diagnostics"
+ ],
+ "no_run_package": "This record only registers the change and its gates. Building a notebook, uploading or running it needs a separate approval."
+}
