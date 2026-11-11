@@ -191,7 +191,7 @@ inference from two points and one run.
 small band around its target, so the model cannot key on one exact offset — a change to the data
 rather than more steps. It is a new experiment and is listed as the next step, not as a result.
 
-## Y — (generated draft)
+## Y — jittering the distance (FAIL)
 
 ### Experiment Y — jittering the distance, and what it did not do
 
@@ -253,90 +253,162 @@ The full curated record, including per-geometry and per-gap numbers, is in
 chart is [`distance_profile_y.svg`](distance_profile_y.svg).
 
 
-## Y72-noise — (generated draft)
+## R300 — resuming from update 200 (INCONCLUSIVE; Y72 retention failed)
 
-<!-- PUBLISH-GENERATED:BEGIN Y72-noise -->
-**Question.** How large is the checkpoint-to-checkpoint noise in the Y72 held-out retention metric (200 segments), is the old per-checkpoint gate itself noisy, and does a shared global clip between the X and replay gradients plausibly explain the Y72 drop?
+**What was asked.** At update 200 the 64-token needle task (X64) sat at zero record-exact on its
+held-out rows. Was it stuck, or only slow? A stop rule was written down first
+(`prereg/stop_rule_300.json`): STUCK if both train and held-out X64 record-exact are still zero at
+update 300 and the gains are small; otherwise INCONCLUSIVE; and a retention failure (Y72 below 80%
+record-exact at any checkpoint) is reported separately and blocks any success claim. Training always
+stops at 300.
 
-**Design.** CPU-only re-evaluation and gradient measurements from eight existing checkpoints (replay weight 0.25: updates 200/225/250/275/300; replay weight 0.5: updates 250/275/300). No training run, no GPU. Segment-exact = all 8 answer tokens correct. Noise models: binomial, row-cluster (ICC), adjacent-checkpoint churn, within-item Bernoulli, cluster bootstrap over 40 rows. Gradient split from separate per-row backward passes on 25 pinned-plan batches per state; one real optimizer step probed per scheme.
+**What was done.** One run, one seed. The update-200 checkpoint was restored and checked against the
+pinned update-200 numbers with zero tolerance (model hash and every integer count equal). The recipe
+was unchanged: replay weight 0.25 on the Y72 rehearsal rows, one global gradient clip at 1.0, learning
+rate 3e-4, six X rows and two replay rows per update, the data plan extended deterministically to 300.
+Checkpoints and full evaluations at 225, 250, 275 and 300.
 
-**Setup.**
+**What actually happened.** X64 was slow, not stuck.
 
-- `heldout_segments`: 200
-- `rows`: 40
-- `segments_per_row`: 5
-- `tokens_per_segment`: 8
-- `cpu_eval_reproduces_gpu_counts`: True
-- `bootstrap`: cluster over rows
-- `alpha_one_sided`: 0.05
-- `power`: 0.8
-- `z_sum`: 2.4865
-- `clip_split_batches_per_state`: 25
-- `real_step_probe_steps`: 12
+| update | X64 held-out exact /240 | X64 held-out tokens /1920 | X64 train exact /240 | Y72 exact /200 | X32 /320 | X109 /120 |
+|---|---|---|---|---|---|---|
+| 200 (restored) | 0 | 257 | 0 | 165 | 173 | 80 |
+| 225 | 11 | 1418 | 28 | 168 | 160 | 102 |
+| 250 | 29 | 1542 | 80 | **137** | 206 | 99 |
+| 275 | 46 | 1603 | 126 | **137** | 235 | 106 |
+| 300 | 92 | 1687 | 182 | **153** | 264 | 109 |
 
-**Final numbers.**
+Held-out X64 rows are disjoint from every training row, so the rise is not memorisation of those rows.
+Y72 is the retention probe: 200 held-out segments of the 72-token needle task. It sat at 165 to 168
+until update 225 and then fell below the 160 floor at 250, 275 and 300.
 
-- `segment_exact_by_checkpoint`: `{"l025_200": 165, "l025_225": 168, "l025_250": 137, "l025_275": 137, "l025_300": 153, "l05_250": 152, "l05_275": 147, "l05_300": 152}`
-- `adjacent_churn`: `{"l025_200->l025_225": {"changed_to_wrong": 23, "changed_to_right": 26, "net": 3, "flips": 49, "churn_rate": 0.245}, "l025_225->l025_250": {"changed_to_wrong": 46, "changed_to_right": 15, "net": -31, "flips": 61, "churn_rate": 0.305}, "l025_250->l025_275": {"changed_to_wrong": 30, "changed_to_right": 30, "net": 0, "flips": 60, "churn_rate": 0.3}, "l025_275->l025_300": {"changed_to_wrong": 18, "changed_to_right": 34, "net": 16, "flips": 52, "churn_rate": 0.26}, "l05_250->l05_275": {"changed_to_wrong": 28, "changed_to_right": 23, "net": -5, "flips": 51, "churn_rate": 0.255}, "l05_275->l05_300": {"changed_to_wrong": 24, "changed_to_right": 29, "net": 5, "flips": 53, "churn_rate": 0.265}}`
-- `mean_adjacent_flips`: `54.333333333333336`
-- `single_checkpoint_sd_segments`: `{"binomial_p0.8": 5.656854249492381, "churn_model": 5.2122, "within_item_all_8_observations": 5.2864, "row_icc_mean": -0.0148}`
-- `rms_adjacent_net_change_vs_churn_expectation`: `{"observed": 14.5831, "expected_from_churn_alone": 7.3711}`
-- `mean_of_checkpoints_250_275_300`: `{"replay_0.25": 142.3333, "replay_0.5": 150.3333, "sum_replay_0.25": 427, "sum_replay_0.5": 451, "cluster_bootstrap_se_replay_0.25": 3.6856, "cluster_bootstrap_se_replay_0.5": 3.9471}`
-- `paired_replay_0.5_minus_0.25_mean_of_3`: `{"diff_segments": 8.0, "cluster_boot_se": 3.8788127886548573, "z": 2.0624867545552097, "ci95": [1.7708057242771297e-15, 15.333333333333336], "frac_boot_le_0": 0.0216}`
-- `minimum_detectable_effect_single_checkpoint`: `{"binomial_iid": {"sd_S": 5.656854249492381, "mde_segments": 14.065768091362804, "mde_pp": 7.032884045681402, "mde_segments_alpha025": 15.848242865377854, "mde_pp_alpha025": 7.924121432688927}, "clustered": {"sd_S": 5.656854249492381, "mde_segments": 14.065768091362804, "mde_pp": 7.032884045681402, "mde_segments_alpha025": 15.848242865377854, "mde_pp_alpha025": 7.924121432688927}, "churn_i_single": {"sd_S": 5.212165257037297, "mde_segments": 12.960048911623238, "mde_pp": 6.480024455811619, "mde_segments_alpha025": 14.602402184115691, "mde_pp_alpha025": 7.301201092057846}}`
-- `one_real_update_flips_of_200`: `{"n_steps": 12, "flips_mean": 13.333333333333334, "flips_sd": 3.961940143032161, "flip_rate_per_step": 0.06666666666666667}`
-- `recommended_gate_for_200_set`: `"sum of Y72 segment-exact over checkpoints 250/275/300 >= 480 and every checkpoint >= 144 (superseded for new experiments by the 600-segment set, see Y72-heldout-v2)"`
-- `shared_clip_split_per_state`: `{"l025_225": {"update": 225, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 4.5192, "mean_norm_replay_grad": 3.0838, "median_norm_replay_grad": 1.6363, "mean_cos_x_vs_replay": -0.1061, "frac_batches_conflict": 0.76, "mean_global_clip_multiplier": 0.2442, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.04, "replay_share_of_update_norm_global_clip": 0.1506, "replay_share_of_update_norm_per_task_clip_0p5": 0.3548}, "l025_250": {"update": 250, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 2.6103, "mean_norm_replay_grad": 3.2022, "median_norm_replay_grad": 2.1736, "mean_cos_x_vs_replay": -0.0614, "frac_batches_conflict": 0.72, "mean_global_clip_multiplier": 0.393, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.0, "replay_share_of_update_norm_global_clip": 0.2217, "replay_share_of_update_norm_per_task_clip_0p5": 0.4526}, "l025_275": {"update": 275, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 3.0336, "mean_norm_replay_grad": 5.2119, "median_norm_replay_grad": 4.3211, "mean_cos_x_vs_replay": -0.0884, "frac_batches_conflict": 0.72, "mean_global_clip_multiplier": 0.4014, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.08, "replay_share_of_update_norm_global_clip": 0.2909, "replay_share_of_update_norm_per_task_clip_0p5": 0.4555}, "l025_300": {"update": 300, "replay_weight": 0.25, "batches": 25, "mean_norm_x_grad": 3.0806, "mean_norm_replay_grad": 1.2824, "median_norm_replay_grad": 0.6041, "mean_cos_x_vs_replay": 0.0306, "frac_batches_conflict": 0.36, "mean_global_clip_multiplier": 0.412, "frac_batches_clip_binding": 0.96, "frac_batches_replay_exceeds_x_norm": 0.04, "replay_share_of_update_norm_global_clip": 0.1136, "replay_share_of_update_norm_per_task_clip_0p5": 0.2782}, "l05_300": {"update": 300, "replay_weight": 0.5, "batches": 25, "mean_norm_x_grad": 2.4696, "mean_norm_replay_grad": 3.6765, "median_norm_replay_grad": 2.3708, "mean_cos_x_vs_replay": 0.0133, "frac_batches_conflict": 0.4, "mean_global_clip_multiplier": 0.3578, "frac_batches_clip_binding": 1.0, "frac_batches_replay_exceeds_x_norm": 0.32, "replay_share_of_update_norm_global_clip": 0.3512, "replay_share_of_update_norm_per_task_clip_0p5": 0.4639}}`
-- `one_step_scheme_effects`: `{"per_task_clip_minus_global": {"n": 12, "dS_mean": 1.4166666666666667, "dS_se": 0.5429762723390704, "dNLL_mean": -0.00427224300801754, "dNLL_se": 0.0019741419994247886, "dLx_actual_ratio_to_A_mean": 0.5963725512547295, "dLx_actual_ratio_median": 0.6029059136034365}, "pcgrad_then_global_minus_global": {"n": 12, "dS_mean": 0.5, "dS_se": 0.2886751345948129, "dNLL_mean": -0.0013105794787406921, "dNLL_se": 0.0004403833497011578, "dLx_actual_ratio_to_A_mean": 0.9935884788968092, "dLx_actual_ratio_median": 1.0}}`
-- `no_more_heldout_items_in_saved_data`: `true`
-- `not_established`: `"any effect of a clip scheme on a 75-update trajectory; relation of the Y72 sawtooth phase to the replay-row cycle"`
+**What it means.** The rule's verdict is **INCONCLUSIVE**: not stuck (held-out token gain 200 → 300 of 74.5
+points and train token gain 250 → 300 of 8.0 points, against STUCK thresholds of 10.0 and 3.0), but
+retention failed from update 250 on, so no success is claimed. The more interesting finding is the
+trade: the same recipe that teaches X64 costs Y72, and Y72 had recovered only partly by 300.
 
-**Cost.** gpu_hours=0, usd=0, cpu_seconds_y72_eval=460.9, cpu_seconds_clip_split=8132, cpu_seconds_step_probes=1907
+**Limitations.** One seed, one run, no retries. The older joint gates of the notebook's 200-update
+protocol also failed and are separate from the stop rule. Python and NumPy RNG state are not restored
+across the resume (disclosed; both were observed unused). Record:
+[`results/experiment_r300_continuation.json`](../results/experiment_r300_continuation.json).
 
-<!-- PUBLISH-GENERATED:END Y72-noise -->
+## Y72-fix-λ0.5 — doubling the replay weight (FAIL_RETENTION)
 
-<!-- TODO(publish): human judgement required. The block above is a faithful dump of the curated record, not prose. Replace it with a narrative section in the same voice as the E-W entries: what was asked, what actually happened, what failed, and what it means. Keep the generated numbers; do not restate any number that is not in results/. Then delete these markers. -->
+**What was asked.** If Y72 falls because replay is too weak, raising the replay weight should hold it.
+One variable changed: 0.25 → 0.5, everything else identical, resumed from the update-225 checkpoint
+of R300 (restored with the same zero-tolerance check) and stopped at 300. Gates were registered first
+(`prereg/y72fix_lambda05.json`): R, Y72 ≥ 160/200 at 250, 275 and 300; A, X64 held-out ≥ 11/240 at every
+checkpoint and a token gain 225 → 300 of at least 10.0 points; N, X32 ≥ 128/320 and X109 ≥ 90/120.
+The control is the 0.25 run from the same checkpoint and plan.
 
-## Y72-heldout-v2 — (generated draft)
+**What actually happened.**
 
-<!-- PUBLISH-GENERATED:BEGIN Y72-heldout-v2 -->
-**Question.** Can a larger, never-inspected Y72 held-out set (600 segments) lower the noise floor of the Y72 retention gate, and does the item-level sqrt(n) noise scaling hold when existing checkpoints are scored on it?
+| update | Y72 /200 (0.5 / 0.25) | X64 held-out exact /240 (0.5 / 0.25) | X64 held-out tokens /1920 | X32 /320 | X109 /120 |
+|---|---|---|---|---|---|
+| 250 | **152** / 137 | 17 / 29 | 1532 / 1542 | 211 / 206 | 100 / 99 |
+| 275 | **147** / 137 | 29 / 46 | 1571 / 1603 | 239 / 235 | 99 / 106 |
+| 300 | **152** / 153 | 42 / 92 | 1618 / 1687 | 273 / 264 | 114 / 109 |
 
-**Design.** 600 new segments (120 rows x 5) from the existing Experiment-Y corpus generator (git c38958c, functions extracted verbatim), seed policy base+distance with new bases 20263600/20263700/20263800, extended leakage ban list (every train payload, probes, rehearsal rows). Pre-registered (set hashes, overlap check, rescaled gate, noise predictions) and committed before any checkpoint was scored. Existing checkpoints were then scored on CPU, checkpoint hashes verified before loading.
+R failed at all three checkpoints (short of 160 by 8, 13 and 8). A passed (the token gain was 200
+tokens, 10.4 points, against a 10.0 requirement). N passed. The verdict is **FAIL_RETENTION**.
+Weight 0.5 narrowed the drop at 250 and 275, was level with the control at 300 (152 vs 153), and cost
+held-out X64 acquisition: 42 vs 92 exact at 300.
 
-**Setup.**
+**What it means.** A doubled replay weight is not enough, and it is not free. It also says something
+narrower: at update 300 more weight on the rehearsal rows did not translate into more held-out Y72
+(152 vs 153), so weight alone is not the missing ingredient.
 
-- `segments`: 600
-- `rows`: 120
-- `blocks`: 3
-- `seeds`: [20263672, 20263772, 20263872]
-- `distance`: 72
-- `set_canonical_sha256`: 16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b
-- `set_file_sha256`: 12e034022357e230685a956e47658315797f164b5b11c30bd35ba4f6ca04a826
-- `payload_list_sha256`: 448e33d083368652f2be11c7e8b1fe958e9e6d0d111fea55d639e9c277eb693a
-- `overlap_check_pass`: True
-- `seed_level_overlap`: {'files_scanned': 263, 'distinct_2026xxxx_literals_found': 11, 'implied_builder_seeds': 77, 'all_used_seeds_count': 87, 'new_seeds_in_used': [], 'pass': True}
-- `content_level_overlap`: {'old_rows_scanned': 9627, 'sources_scanned': 140, 'exact_row_matches_total': 0, 'payload_matches_total': 0, 'filler_string_matches_total': 0, '16byte_window_matches_total': 0, 'corpus_blob_payload_occurrences': 0}
-- `gate`: {'sum_over_checkpoints_250_275_300_at_least': 1440, 'each_checkpoint_at_least': 432, 'equivalent_percent': 'mean >= 80.0% and each >= 72.0%', 'rule_id': 'vyra-y72-heldout-v2-gate-v1'}
+**Limitations.** One seed. A metric that flips 49 to 61 of 200 items per 25 updates (see the noise
+study below) can move by more than the 8 to 13 item shortfall by chance, so the result shows that 0.5
+missed the bar, not that the weight has no effect. Record:
+[`results/experiment_y72fix_lambda05.json`](../results/experiment_y72fix_lambda05.json).
 
-**Final numbers.**
+## Y72-noise — how noisy is the Y72 gate, and is the shared clip to blame? (measurement)
 
-- `segment_exact_of_600_by_checkpoint`: `{"l025_200": 498, "l025_225": 490, "l025_250": 363, "l025_275": 390, "l025_300": 454, "l05_250": 450, "l05_275": 421, "l05_300": 420}`
-- `percent_by_checkpoint`: `{"l025_200": 83.0, "l025_225": 81.67, "l025_250": 60.5, "l025_275": 65.0, "l025_300": 75.67, "l05_250": 75.0, "l05_275": 70.17, "l05_300": 70.0}`
-- `same_checkpoints_on_legacy_200_set`: `{"l025_200": 165, "l025_225": 168, "l025_250": 137, "l025_275": 137, "l025_300": 153, "l05_250": 152, "l05_275": 147, "l05_300": 152}`
-- `adjacent_churn`: `{"l025_200->l025_225": {"c2w": 72, "w2c": 64, "flips": 136, "net": -8, "churn_rate": 0.22666666666666666}, "l025_225->l025_250": {"c2w": 169, "w2c": 42, "flips": 211, "net": -127, "churn_rate": 0.3516666666666667}, "l025_250->l025_275": {"c2w": 88, "w2c": 115, "flips": 203, "net": 27, "churn_rate": 0.3383333333333333}, "l025_275->l025_300": {"c2w": 49, "w2c": 113, "flips": 162, "net": 64, "churn_rate": 0.27}, "l05_250->l05_275": {"c2w": 88, "w2c": 59, "flips": 147, "net": -29, "churn_rate": 0.245}, "l05_275->l05_300": {"c2w": 94, "w2c": 93, "flips": 187, "net": -1, "churn_rate": 0.31166666666666665}}`
-- `single_checkpoint_sd_segments`: `{"registered_prediction_range": [8.89, 9.8], "churn_model": 9.3363, "within_item_all_8_observations": 9.7285, "inside_registered_range": true, "row_icc_mean": 0.0129}`
-- `mean_of_checkpoints_250_275_300`: `{"l025": {"mean_segments": 402.3333, "percent": 67.0556, "cluster_bootstrap_se": 8.9605, "ci95": [384.6667, 419.6667], "registered_prediction_range_se": [5.29, 6.84]}, "l05": {"mean_segments": 430.3333, "percent": 71.7222, "cluster_bootstrap_se": 8.2557, "ci95": [414.0, 446.3333], "registered_prediction_range_se": [5.29, 6.84]}}`
-- `paired_replay_0.5_minus_0.25_mean_of_3`: `{"diff_segments": 28.0, "diff_pp": 4.6667, "cluster_boot_se": 9.2965, "z": 3.0119, "frac_boot_le_0": 0.0018}`
-- `minimum_detectable_effect_observed`: `{"single_checkpoint_within_item_sd": {"segments": 24.18980597165733, "pp": 4.031634328609555}, "single_checkpoint_churn_i": {"segments": 23.21473245143408, "pp": 3.869122075239013}, "mean_of_3_cluster_boot_max": {"segments": 22.280347214003637, "pp": 3.7133912023339395}, "mean_of_3_cluster_boot_min": {"segments": 20.527899346328056, "pp": 3.4213165577213425}}`
-- `registered_gate_applied_to_the_two_observed_runs_illustration_only`: `{"l025": {"sum": 1207, "verdict": "R_FAIL"}, "l05": {"sum": 1291, "verdict": "R_FAIL"}}`
-- `finding`: `"single-checkpoint noise scales as predicted (item-level, SD about 9.3-9.7 segments = 1.6 pp), but the mean of 3 checkpoints shrinks the SE less than independence predicts (observed 8.3-9.0 segments vs registered 5.3-6.8): checkpoints share a component. Both earlier runs fail the registered gate on the new set. The 600-set is about 4 pp harder than the 200-set for the later checkpoints (same generator, disjoint sample)."`
+**What was asked.** Before another run: how large is the checkpoint-to-checkpoint noise in the Y72
+metric, can the old rule ("every checkpoint ≥ 160 of 200") tell a fix from chance, and does the single
+global clip, which scales the X and replay gradients by one number, plausibly squeeze replay out?
 
-**Cost.** gpu_hours=0, usd=0, cpu_seconds_scoring_8_checkpoints=1202.1, wall_seconds_scoring=159.0
+**What was done.** CPU only, no training, from the eight existing checkpoints (λ0.25 at 200, 225,
+250, 275, 300; λ0.5 at 250, 275, 300). The CPU evaluation reproduced every GPU-emitted Y72 count.
+Noise was modelled four ways (binomial, row-clustered via ICC, adjacent-checkpoint churn, within-item
+Bernoulli) and bootstrapped over the 40 rows. Gradients were split per task from separate per-row
+backward passes on 25 pinned-plan batches per state, and one real optimizer step was taken per clip
+scheme to compare effects.
 
-<!-- PUBLISH-GENERATED:END Y72-heldout-v2 -->
+**What actually happened.**
 
-<!-- TODO(publish): human judgement required. The block above is a faithful dump of the curated record, not prose. Replace it with a narrative section in the same voice as the E-W entries: what was asked, what actually happened, what failed, and what it means. Keep the generated numbers; do not restate any number that is not in results/. Then delete these markers. -->
+- *Churn.* Between adjacent checkpoints 49, 61, 60 and 52 of the 200 segments change correctness for
+  λ0.25 (net +3, −31, 0, +16) and 51 and 53 for λ0.5; the mean is 54.3 (27%). One real optimizer step
+  flips 13.3 ± 4.0 segments.
+- *Noise floor.* Single-checkpoint SD is 5.2 to 5.7 segments (2.6 to 2.8 points); the row ICC is
+  −0.015, so there is no detectable row clustering. The minimum effect one checkpoint can resolve
+  (one-sided α 0.05, power 0.8) is about 14 segments (7.0 points); the mean of three checkpoints has a
+  cluster-bootstrap SE of 3.7 (λ0.25) and 3.9 (λ0.5) segments.
+- *The movement is more than noise.* The RMS of the six adjacent net changes is 14.6 against 7.4
+  expected from churn alone. Against the 225 level, the λ0.25 mean of three is down 24.2 segments and
+  the λ0.5 mean of three down 16.2; λ0.5 beats λ0.25 by 8.0 (z 2.06).
+- *Gradients.* At the λ0.25 checkpoints cos(X gradient, replay gradient) averages −0.106 at 225,
+  −0.061 at 250, −0.088 at 275 and +0.031 at 300; the gradients conflict on 76%, 72%, 72% and 36% of
+  batches; the global clip binds on 96 to 100%. Replay takes 11 to 29% of the update norm under the
+  global clip against 28 to 46% under a per-task clip of 0.5.
+- *One-step probes (12 real updates).* Per-task clipping gains Y72 +1.42 segments (SE 0.54) and loses
+  roughly 40% of the X loss decrease; PCGrad-style projection gains +0.5 (SE 0.29). Both are far
+  below what one run can resolve.
+
+**What it means.** The old gate could not separate a fix from chance at the effect sizes at stake, and
+the 200-segment set cannot be made better from saved data (no further Y72 held-out items exist). The
+clip evidence points at a plausible mechanism but not at a cure.
+
+**Limitations.** The first-order gradient model is a direction diagnostic, not a forecast of a 75-update
+trajectory; nothing here shows that any clip scheme changes one. Record:
+[`results/experiment_y72-noise_noise_floor_clip_split.json`](../results/experiment_y72-noise_noise_floor_clip_split.json).
+
+## Y72-heldout-v2 — a larger, pre-registered held-out set (both runs fail it)
+
+**What was asked.** Lower the noise floor with more items, without looking at the new items first.
+
+**What was done.** 600 new Y72 segments (120 rows × 5, three blocks of 40 rows) from the existing
+experiment-Y generator with its seed policy (seed = base + distance, new bases 20263600, 20263700,
+20263800) and a leakage ban list extended with every training payload. The set's hashes, an overlap
+check (no new seed among 87 used seeds; 0 exact-row, payload, filler or 16-byte-window matches against
+9,627 old rows; 600 distinct payloads; a positive control that fails on purpose), a rescaled gate
+(sum over 250, 275, 300 ≥ 1440 of 1800, each ≥ 432 of 600) and noise predictions were committed before
+any checkpoint was scored (`prereg/y72_heldout_v2.json`). The existing checkpoints were then scored on
+CPU with their file hashes verified before loading, and the 200-set was rescored in the same pass
+(identical to the earlier counts for all eight).
+
+**What actually happened.**
+
+| checkpoint | 600-set exact | % | old 200-set |
+|---|---|---|---|
+| λ0.25 200 / 225 | 498 / 490 | 83.0 / 81.7 | 165 / 168 |
+| λ0.25 250 / 275 / 300 | 363 / 390 / 454 | 60.5 / 65.0 / 75.7 | 137 / 137 / 153 |
+| λ0.5 250 / 275 / 300 | 450 / 421 / 420 | 75.0 / 70.2 / 70.0 | 152 / 147 / 152 |
+
+Applying the registered gate to the two finished runs: **λ0.25 sums to 1207 and λ0.5 to 1291 against
+1440, both fail**, and the 432 guard fails at two of three checkpoints in each run. This is an
+illustration, not a gated experiment. λ0.5 minus λ0.25 on the mean of the three checkpoints is +28
+segments (+4.67 points), cluster SE 9.3, z 3.01. The new set is about 4 points harder than the old one
+at the later checkpoints (mean of three: 67.1% / 71.7% against 71.2% / 75.2%); at 200 and 225 the two
+sets agree within 2.3 points.
+
+*Noise.* Single-checkpoint SD came out at 9.34 (churn model) and 9.73 (within-item) segments, inside
+the registered 8.9 to 9.8, so noise does scale with √n for one checkpoint (1.6 points); row ICC is
++0.013. The mean of three did not behave: cluster-bootstrap SE 8.96 (λ0.25) and 8.26 (λ0.5)
+segments, against a registered 5.3 to 6.8, because the three checkpoints share a component. The
+registered prediction was wrong here. Observed minimum detectable effect: 24.2 segments (4.0 points)
+for one checkpoint, 20.5 to 22.3 (3.4 to 3.7 points) for the mean of three, against 7.0 and 3.8 to 4.9
+points on the old set.
+
+**What it means.** The larger set gives a firmer reading of an effect that was borderline, and a gate
+that both earlier runs clearly miss. It does not give the precision the √n prediction promised for a
+three-checkpoint gate.
+
+**Limitations.** The set is still one distance, one generator, and the scoring was of existing
+checkpoints: no new experiment was run. The set itself is committed in text form
+(`prereg/y72_heldout_v2/y72_heldout_v2_set.json`), verified against the registered hashes. Record:
+[`results/experiment_y72-heldout-v2_heldout_600.json`](../results/experiment_y72-heldout-v2_heldout_600.json).
 
 ## Open questions
 
@@ -347,3 +419,8 @@ chart is [`distance_profile_y.svg`](distance_profile_y.svg).
 2. Is the 114–120 boundary a property of the architecture or of this task's encoding?
 3. Does the learning-rate sensitivity persist at larger widths, or is it a small-model artifact?
 4. Would per-distance heads or a distance-conditioned curriculum avoid overwriting entirely?
+5. Can Y72 be retained while X64 is still learned? X and Y gradients conflict on the same parameters (mean
+   cosine −0.49; the Fisher diagonals of the two tasks are nearly the same coordinates), so there is no separate
+   set of weights to protect. CPU probes (not a run) favour a per-task gradient clip over a heavier replay
+   weight, an L2 anchor, frozen layers or gradient projection, at the price of much slower X64 learning. The
+   change and its gates are registered in [`prereg/y72fix2.md`](../prereg/y72fix2.md) and have **not** been run.

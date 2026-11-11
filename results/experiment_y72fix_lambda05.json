@@ -1,0 +1,159 @@
+{
+ "question": "Does doubling the replay weight on the Y72 rehearsal rows (0.25 -> 0.5), resuming from update 225 and stopping at 300, keep Y72 retention at or above 80% segment-exact without costing X64 acquisition or X32/X109?",
+ "design": "One run, one seed, one changed variable: replay weight 0.5 instead of 0.25, resumed from the update-225 checkpoint of the 200->300 run (restored with a zero-tolerance check; weight change recorded as the one disclosed difference), same pinned plan rows 225-300, same global clip. Control: the 0.25 run from the same checkpoint. Gates pre-registered (prereg/y72fix_lambda05.json): R retention = Y72 >= 160/200 at 250, 275 and 300; A acquisition = X64 held-out >= 11/240 at each checkpoint and token gain 225->300 >= 10.0 pp; N non-regression = X32 >= 128/320 and X109 >= 90/120.",
+ "setup": {
+  "resume_update": 225,
+  "final_update": 300,
+  "updates_run": 75,
+  "replay_weight": 0.5,
+  "control_replay_weight": 0.25,
+  "global_clip": 1.0,
+  "restoration_check_passed": true,
+  "y72_heldout_segments": 200,
+  "x64_heldout_segments": 240
+ },
+ "final": {
+  "update_225_restored": {
+   "x64_train_tokens": 1562,
+   "x64_train_segments_exact": 28,
+   "x64_heldout_tokens": 1418,
+   "x64_heldout_segments_exact": 11,
+   "y72_segments_exact_of_200": 168,
+   "y72_tokens_of_1600": 1565,
+   "x32_segments_exact_of_320": 160,
+   "x109_segments_exact_of_120": 102
+  },
+  "lambda_0.5_by_update": {
+   "250": {
+    "x64_train_tokens": 1700,
+    "x64_train_segments_exact": 63,
+    "x64_heldout_tokens": 1532,
+    "x64_heldout_segments_exact": 17,
+    "y72_segments_exact_of_200": 152,
+    "y72_tokens_of_1600": 1546,
+    "x32_segments_exact_of_320": 211,
+    "x32_tokens_of_2560": 2428,
+    "x109_segments_exact_of_120": 100,
+    "x109_tokens_of_960": 936
+   },
+   "275": {
+    "x64_train_tokens": 1731,
+    "x64_train_segments_exact": 83,
+    "x64_heldout_tokens": 1571,
+    "x64_heldout_segments_exact": 29,
+    "y72_segments_exact_of_200": 147,
+    "y72_tokens_of_1600": 1544,
+    "x32_segments_exact_of_320": 239,
+    "x32_tokens_of_2560": 2460,
+    "x109_segments_exact_of_120": 99,
+    "x109_tokens_of_960": 934
+   },
+   "300": {
+    "x64_train_tokens": 1794,
+    "x64_train_segments_exact": 128,
+    "x64_heldout_tokens": 1618,
+    "x64_heldout_segments_exact": 42,
+    "y72_segments_exact_of_200": 152,
+    "y72_tokens_of_1600": 1546,
+    "x32_segments_exact_of_320": 273,
+    "x32_tokens_of_2560": 2505,
+    "x109_segments_exact_of_120": 114,
+    "x109_tokens_of_960": 951
+   }
+  },
+  "lambda_0.25_control_by_update": {
+   "250": {
+    "x64_train_tokens": 1701,
+    "x64_train_segments_exact": 80,
+    "x64_heldout_tokens": 1542,
+    "x64_heldout_segments_exact": 29,
+    "y72_segments_exact_of_200": 137,
+    "y72_tokens_of_1600": 1529,
+    "x32_segments_exact_of_320": 206,
+    "x32_tokens_of_2560": 2420,
+    "x109_segments_exact_of_120": 99,
+    "x109_tokens_of_960": 933
+   },
+   "275": {
+    "x64_train_tokens": 1785,
+    "x64_train_segments_exact": 126,
+    "x64_heldout_tokens": 1603,
+    "x64_heldout_segments_exact": 46,
+    "y72_segments_exact_of_200": 137,
+    "y72_tokens_of_1600": 1533,
+    "x32_segments_exact_of_320": 235,
+    "x32_tokens_of_2560": 2460,
+    "x109_segments_exact_of_120": 106,
+    "x109_tokens_of_960": 945
+   },
+   "300": {
+    "x64_train_tokens": 1854,
+    "x64_train_segments_exact": 182,
+    "x64_heldout_tokens": 1687,
+    "x64_heldout_segments_exact": 92,
+    "y72_segments_exact_of_200": 153,
+    "y72_tokens_of_1600": 1552,
+    "x32_segments_exact_of_320": 264,
+    "x32_tokens_of_2560": 2494,
+    "x109_segments_exact_of_120": 109,
+    "x109_tokens_of_960": 946
+   }
+  },
+  "difference_0.5_minus_0.25": {
+   "250": {
+    "x64_train_tokens": -1,
+    "x64_train_segments_exact": -17,
+    "x64_heldout_tokens": -10,
+    "x64_heldout_segments_exact": -12,
+    "y72_segments_exact_of_200": 15,
+    "y72_tokens_of_1600": 17,
+    "x32_segments_exact_of_320": 5,
+    "x32_tokens_of_2560": 8,
+    "x109_segments_exact_of_120": 1,
+    "x109_tokens_of_960": 3
+   },
+   "275": {
+    "x64_train_tokens": -54,
+    "x64_train_segments_exact": -43,
+    "x64_heldout_tokens": -32,
+    "x64_heldout_segments_exact": -17,
+    "y72_segments_exact_of_200": 10,
+    "y72_tokens_of_1600": 11,
+    "x32_segments_exact_of_320": 4,
+    "x32_tokens_of_2560": 0,
+    "x109_segments_exact_of_120": -7,
+    "x109_tokens_of_960": -11
+   },
+   "300": {
+    "x64_train_tokens": -60,
+    "x64_train_segments_exact": -54,
+    "x64_heldout_tokens": -69,
+    "x64_heldout_segments_exact": -50,
+    "y72_segments_exact_of_200": -1,
+    "y72_tokens_of_1600": -6,
+    "x32_segments_exact_of_320": 9,
+    "x32_tokens_of_2560": 11,
+    "x109_segments_exact_of_120": 5,
+    "x109_tokens_of_960": 5
+   }
+  },
+  "gates": {
+   "R_retention": false,
+   "A_acquisition": true,
+   "N_nonregression": true,
+   "A_token_gain_225_to_300_pp": 10.4,
+   "y72_short_of_160_by_segments": {
+    "250": 8,
+    "275": 13,
+    "300": 8
+   }
+  },
+  "reading": "Replay weight 0.5 narrowed the Y72 drop at 250 and 275 (152 and 147 vs 137 and 137) but at 300 the two arms were level (152 vs 153). It cost X64 acquisition: held-out 42/240 vs 92/240 at 300. X32 and X109 stayed above their floors. Y72 was below 160/200 at all three checkpoints, so R failed."
+ },
+ "verdict": "FAIL_RETENTION (R failed at 250/275/300 with Y72 152/147/152 of 200; A and N passed)",
+ "cost": {
+  "gpu_hours_charged_approx": 0.09,
+  "usd": 0,
+  "run_seconds": 123.6
+ }
+}

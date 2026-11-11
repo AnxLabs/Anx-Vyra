@@ -1,0 +1,93 @@
+{
+ "question": "Does X64 (the 64-token needle distance, held-out segments) keep being learned past update 200, if the run is resumed from the update-200 checkpoint with the same recipe (replay weight 0.25, one global clip at 1.0) for 100 more updates, and does Y72 retention survive?",
+ "design": "One run, one seed. Resume from the update-200 checkpoint (restored with a zero-tolerance restoration check: model hash and every integer count equal to the pinned update-200 values), extend the pinned data plan to 300 updates (6 X rows + 2 replay rows per update), checkpoint and evaluate at 225/250/275/300, always stop at 300. Pre-registered stop rule (prereg/stop_rule_300.json): STUCK / INCONCLUSIVE, with retention failure reported separately and blocking any success claim.",
+ "setup": {
+  "resume_update": 200,
+  "final_update": 300,
+  "updates_run": 100,
+  "replay_weight": 0.25,
+  "global_clip": 1.0,
+  "learning_rate": 0.0003,
+  "x64_heldout_segments": 240,
+  "y72_heldout_segments": 200,
+  "restoration_check_passed": true,
+  "hardware": "one free-tier GPU session, 2 x T4 (training on one device)"
+ },
+ "final": {
+  "update_200_restored": {
+   "x64_train_tokens": 669,
+   "x64_train_segments_exact": 0,
+   "x64_heldout_tokens": 257,
+   "x64_heldout_segments_exact": 0,
+   "y72_segments_exact_of_200": 165,
+   "y72_tokens_of_1600": 1561,
+   "x32_segments_exact_of_320": 173,
+   "x109_segments_exact_of_120": 80
+  },
+  "by_update": {
+   "225": {
+    "x64_train_tokens": 1562,
+    "x64_train_segments_exact": 28,
+    "x64_heldout_tokens": 1418,
+    "x64_heldout_segments_exact": 11,
+    "y72_segments_exact_of_200": 168,
+    "y72_tokens_of_1600": 1565,
+    "x32_segments_exact_of_320": 160,
+    "x109_segments_exact_of_120": 102
+   },
+   "250": {
+    "x64_train_tokens": 1701,
+    "x64_train_segments_exact": 80,
+    "x64_heldout_tokens": 1542,
+    "x64_heldout_segments_exact": 29,
+    "y72_segments_exact_of_200": 137,
+    "y72_tokens_of_1600": 1529,
+    "x32_segments_exact_of_320": 206,
+    "x109_segments_exact_of_120": 99
+   },
+   "275": {
+    "x64_train_tokens": 1785,
+    "x64_train_segments_exact": 126,
+    "x64_heldout_tokens": 1603,
+    "x64_heldout_segments_exact": 46,
+    "y72_segments_exact_of_200": 137,
+    "y72_tokens_of_1600": 1533,
+    "x32_segments_exact_of_320": 235,
+    "x109_segments_exact_of_120": 106
+   },
+   "300": {
+    "x64_train_tokens": 1854,
+    "x64_train_segments_exact": 182,
+    "x64_heldout_tokens": 1687,
+    "x64_heldout_segments_exact": 92,
+    "y72_segments_exact_of_200": 153,
+    "y72_tokens_of_1600": 1552,
+    "x32_segments_exact_of_320": 264,
+    "x109_segments_exact_of_120": 109
+   }
+  },
+  "stop_rule": {
+   "verdict": "INCONCLUSIVE",
+   "stuck": false,
+   "heldout_gain_200_to_300_pp": "3575/48 = 74.479167",
+   "train_gain_250_to_300_pp": "255/32 = 7.968750",
+   "retention_failure_at": [
+    250,
+    275,
+    300
+   ],
+   "slow_learner_evidence_at": [
+    225
+   ],
+   "success_claim_allowed": false
+  },
+  "y72_floor_segments_of_200": 160,
+  "reading": "X64 held-out exact went 0 -> 11 -> 29 -> 46 -> 92 of 240 (held-out rows disjoint from every training row), so X64 was still being learned; Y72 retention fell from 168 at update 225 to 137, 137, 153 at 250/275/300, all below the 160 floor. Retention failure blocks any success claim; the verdict is INCONCLUSIVE."
+ },
+ "verdict": "INCONCLUSIVE (not stuck; X64 held-out 92/240 at update 300); retention failure at 250, 275, 300 (Y72 137, 137, 153 of 200 vs floor 160)",
+ "cost": {
+  "gpu_hours_charged_approx": 0.15,
+  "usd": 0,
+  "run_seconds": 160.3
+ }
+}

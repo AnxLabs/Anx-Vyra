@@ -248,7 +248,7 @@ neighbouring distances, and it has not been shown to generalise to a *continuous
 rather than a trained set of them. The jittered-filler fix proposed for that was run as
 Experiment Y, and it did not work (finding 5).
 
-### 5. Y — (generated draft)
+### 5. Jittering the distance did not smooth it (Experiment Y)
 
 **Jittering the distance did not smooth it.** Experiment Y took X's ending weights and trained
 with filler length jittered by ±8 around each of the three anchors, turning three trained distances
@@ -279,33 +279,80 @@ The chart plots per-geometry unseen token accuracy before and after. The anchors
 0 are the points that fall; the band geometries that never reached record level sit near the axis in
 both series.
 
-### 6. Y72-noise — (generated draft)
+### 6. Resuming from update 200 kept teaching X64, and broke Y72 retention (INCONCLUSIVE)
 
-<!-- PUBLISH-GENERATED:BEGIN Y72-noise:readme -->
-Experiment `Y72-noise`. Curated record: [`results/experiment_y72-noise_noise_floor_clip_split.json`](results/experiment_y72-noise_noise_floor_clip_split.json).
+The 64-token needle task (X64) had been stuck at zero record-exact on held-out rows at update 200.
+The next question was whether it was stuck or only slow, so the run was resumed from the update-200
+checkpoint with the same recipe (replay weight 0.25, one global clip at 1.0) for 100 more updates,
+under a stop rule written down in advance (`prereg/stop_rule_300.json`). One run, one seed.
 
-Recorded verdict string from the run: `measurement study only: no training run, no gate evaluated; both earlier runs lost Y72 relative to update 225, replay weight 0.5 lost less (one seed, borderline)`.
+X64 was slow, not stuck. Held-out record-exact (rows disjoint from every training row) went
+0 → 11 → 29 → 46 → 92 of 240 at updates 200 / 225 / 250 / 275 / 300, and held-out token accuracy went
+257 → 1418 → 1542 → 1603 → 1687 of 1920 (13.4% → 87.9%). X32 and X109 ended above where they started
+(264/320 and 109/120 at update 300).
 
-<!-- PUBLISH-GENERATED:END Y72-noise:readme -->
+Retention of Y72, the 72-token needle distance, failed. Y72 record-exact on its 200 held-out segments
+was 165 at update 200 and 168 at 225, then **137, 137 and 153 at 250, 275 and 300**, against a floor of
+160. The pre-registered rule therefore returns **INCONCLUSIVE**: not stuck, but retention failed at
+every checkpoint from 250 on, and no success may be claimed. Curated record:
+[`results/experiment_r300_continuation.json`](results/experiment_r300_continuation.json).
 
-<!-- TODO(publish): human judgement required. The block above is a dump of the curated record for
-`results/noise_floor_clip_split.json`, not findings prose. Write this subsection by hand: state what the result
-actually shows, state any failure plainly, and scope the claim to this single-seed run. Then delete
-these markers. -->
+### 7. Doubling the replay weight did not fix Y72, and cost X64 (FAIL_RETENTION)
 
-### 7. Y72-heldout-v2 — (generated draft)
+The obvious single-variable fix for finding 6 was to raise the replay weight on the Y72 rehearsal rows
+from 0.25 to 0.5. It was run once, resumed from the update-225 checkpoint of the 200→300 run and
+stopped at 300, against gates written beforehand (`prereg/y72fix_lambda05.json`): Y72 ≥ 160/200 at
+250, 275 and 300 (retention), X64 held-out ≥ 11/240 at every checkpoint plus a ≥ 10.0 point token gain
+(acquisition), X32 ≥ 128/320 and X109 ≥ 90/120 (non-regression).
 
-<!-- PUBLISH-GENERATED:BEGIN Y72-heldout-v2:readme -->
-Experiment `Y72-heldout-v2`. Curated record: [`results/experiment_y72-heldout-v2_heldout_600.json`](results/experiment_y72-heldout-v2_heldout_600.json).
+Result: **FAIL_RETENTION**. Y72 was 152, 147 and 152 of 200 at 250, 275 and 300, short of 160 by 8, 13
+and 8. The 0.25 control was 137, 137 and 153. So the larger weight narrowed the drop at 250 and 275,
+and was level with the control at 300. It paid for that in X64: held-out record-exact 17, 29 and 42
+of 240 against the control's 29, 46 and 92 (token accuracy 1618 vs 1687 of 1920 at 300). Acquisition
+and non-regression passed their gates. One seed; a metric that flips 49 to 61 of its 200 items per
+25 updates (finding 8) can move by more than the 8 to 13 item shortfall by chance, so this shows that
+0.5 did not meet the bar, not that the weight has no effect on retention. Curated record:
+[`results/experiment_y72fix_lambda05.json`](results/experiment_y72fix_lambda05.json).
 
-Recorded verdict string from the run: `pre-registered set and gate; existing checkpoints scored non-gating on CPU: both runs below the rescaled gate; noise scaling partly confirmed (single-checkpoint yes, mean-of-3 no)`.
+### 8. The Y72 gate was noisier than the effects it was asked to detect (measurement study)
 
-<!-- PUBLISH-GENERATED:END Y72-heldout-v2:readme -->
+Before spending another run, the noise in the Y72 metric was measured on the eight existing
+checkpoints, CPU only, no training. Two checkpoints 25 updates apart disagree on 49 to 61 of the 200
+held-out segments (27% on average); a single real optimizer step already flips 13.3 ± 4.0. The
+single-checkpoint standard deviation is 5.2 to 5.7 segments (2.6 to 2.8 points), with no detectable
+row clustering (row ICC −0.015), which makes the smallest effect one checkpoint can resolve
+about 14 segments (7.0 points). The mean of the three late checkpoints has a cluster-bootstrap SE
+of 3.7 (λ0.25) and 3.9 (λ0.5) segments. The old rule "every checkpoint ≥ 160" therefore has a large
+chance of failing a model that sits at the floor.
 
-<!-- TODO(publish): human judgement required. The block above is a dump of the curated record for
-`results/heldout_600.json`, not findings prose. Write this subsection by hand: state what the result
-actually shows, state any failure plainly, and scope the claim to this single-seed run. Then delete
-these markers. -->
+Gradient measurements at the λ0.25 checkpoints found the replay and X gradients mostly pulling against
+each other (mean cosine −0.106, −0.061 and −0.088 at updates 225, 250 and 275; +0.031 at 300) and the
+single global clip binding on 96 to 100% of batches. A one-step probe of 12 real updates found
+per-task clipping gives Y72 +1.42 segments (SE 0.54) over the global clip, and gradient projection
++0.5 (SE 0.29): real but far below one run's resolution. The saved data held no further Y72
+held-out items, so the study could not lower the noise itself. Curated record:
+[`results/experiment_y72-noise_noise_floor_clip_split.json`](results/experiment_y72-noise_noise_floor_clip_split.json).
+
+### 9. A 600-segment held-out set: both runs fail it, and the noise did not shrink as predicted
+
+A new Y72 held-out set of 600 segments was generated with the existing generator and seed policy,
+checked against every earlier row for seed, row, payload, filler and 16-byte-window overlap (none),
+and pre-registered with its hashes, a rescaled gate (sum over updates 250, 275, 300 ≥ 1440 and each
+≥ 432 of 600) and noise predictions, all committed before any checkpoint was scored on it
+(`prereg/y72_heldout_v2.json`).
+
+Scoring the existing checkpoints on it, afterwards: λ0.25 scored 363, 390 and 454 and λ0.5 450, 421
+and 420 at 250, 275 and 300, sums of **1207 and 1291 against 1440: both fail**, and two of three checkpoints in
+each run (λ0.25: 363, 390; λ0.5: 421, 420) also sit below the 432 guard. λ0.5 minus λ0.25 on the
+mean of the three is +28 segments (+4.67 points), z 3.01 with a cluster-bootstrap SE of 9.3, firmer
+than the +8 (z 2.06) on the 200-item set. The new set is about 4 points harder than the old one at
+the later checkpoints.
+
+The registered prediction was half right. Single-checkpoint noise scaled as predicted (SD 9.3 to 9.7
+segments, 1.6 points; predicted 8.9 to 9.8). The mean of three checkpoints did not: its SE is 8.3 to
+9.0 segments against a predicted 5.3 to 6.8, so the checkpoints share a component and averaging them
+buys less than independence would. Curated record:
+[`results/experiment_y72-heldout-v2_heldout_600.json`](results/experiment_y72-heldout-v2_heldout_600.json).
 
 ## Known limitations
 
@@ -332,7 +379,10 @@ Stated plainly, because a research repository is only useful if its edges are vi
   trained distance. The model appears to form distance-sharp representations at the offsets it is
   shown rather than a smooth rule, so an untrained distance next door is not covered. This is inferred
   from two degraded points in one run; the proposed fix (jittering filler lengths around each target)
-  has not been run.
+  was run as Experiment Y and did not work (finding 5).
+- **Retention of Y72 is not solved.** Continuing training taught X64 but dropped Y72 below its pre-registered
+  floor at every checkpoint from update 250 (findings 6 and 7), doubling the replay weight did not fix it,
+  and the 600-segment set (finding 9) fails both runs. Every one of these is a single run on a single seed. A per-task-clip fix is registered ([`prereg/y72fix2.md`](prereg/y72fix2.md)) from CPU probes only; it has not been run, and its estimated chance of passing all gates is about 0.6.
 - **Distance limit is empirical.** We measured where it breaks (between 114 and 120). We have not
   proven *why* beyond ruling out record count and window size.
 - **CPU reference path.** Reported results were produced on GPU and validated against CPU evaluation
