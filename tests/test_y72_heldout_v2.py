@@ -12,7 +12,8 @@ import y72_heldout_v2 as g  # noqa: E402
 
 D = ROOT / "prereg" / "y72_heldout_v2"
 PREREG = json.loads((ROOT / "prereg" / "y72_heldout_v2.json").read_text())
-SET = D / "y72_heldout_v2.pt"
+SET = D / "y72_heldout_v2.pt"            # binary: gitignored, present only on the box that generated it
+SET_TEXT = D / "y72_heldout_v2_set.json"  # committed text form, same canonical sha256
 
 
 def test_module_constants_match_the_committed_prereg():
@@ -27,6 +28,23 @@ def test_module_constants_match_the_committed_prereg():
     assert p["gate"]["checkpoints"] == list(g.CHECKPOINTS)
 
 
+needs_pt = pytest.mark.skipif(not SET.is_file(), reason="binary .pt set is gitignored; the text form is tested instead")
+
+
+def test_text_set_verifies_against_the_preregistered_hashes_and_fails_closed(tmp_path):
+    s = g.verify_text_set(SET_TEXT)
+    assert len(set(s["payloads"])) == len(s["payloads"]) == g.N_SEGMENTS and s["distance"] == 72 and s["copies"] == 5
+    assert json.loads((D / "gen_info.json").read_text())["canonical_rows_mask_sha256"] == g.SET_CANONICAL_SHA256
+    raw = json.loads(SET_TEXT.read_text())
+    h = raw["rows_int16le_hex"]; raw["rows_int16le_hex"] = h[:200] + ("0" if h[200] != "0" else "1") + h[201:]
+    bad = tmp_path / "bad.json"; bad.write_text(json.dumps(raw))
+    with pytest.raises(g.SetGateError, match="SET_CANONICAL_SHA256_MISMATCH"):
+        g.verify_text_set(bad)
+    with pytest.raises(g.SetGateError, match="SET_CANONICAL_SHA256_MISMATCH"):
+        g.verify_text_set(SET_TEXT, expected_canonical="0" * 64)
+
+
+@needs_pt
 def test_committed_set_verifies_and_matches_generator_evidence():
     s = g.verify_set(SET)
     info = json.loads((D / "gen_info.json").read_text())
@@ -36,6 +54,7 @@ def test_committed_set_verifies_and_matches_generator_evidence():
     assert s["rows"].dtype == torch.int16 and int(s["copies"]) == 5 and int(s["distance"]) == 72
 
 
+@needs_pt
 def test_verify_set_fails_closed(tmp_path):
     bad = tmp_path / "set.pt"
     raw = bytearray(SET.read_bytes()); raw[100] ^= 1
@@ -52,7 +71,7 @@ def test_overlap_evidence_is_committed_and_clean_and_the_checker_has_a_positive_
     c = o["content_level"]
     assert c["exact_row_matches_total"] == c["payload_matches_total"] == c["filler_string_matches_total"] == c["16byte_window_matches_total"] == 0
     assert c["old_rows_scanned"] > 9000 and o["vs_current_200_heldout"]["exact_row_matches"] == 0
-    assert "overall pass = False" in (D / "overlap_positive_control.log").read_text()
+    assert "overall pass = False" in (D / "overlap_positive_control.log.txt").read_text()
 
 
 def test_seeds_are_new_under_the_original_policy():

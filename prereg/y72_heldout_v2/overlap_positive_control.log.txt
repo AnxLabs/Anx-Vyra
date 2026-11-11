@@ -1,0 +1,1 @@
+POSITIVE CONTROL (one shipped held-out row injected): overall pass = False | exact_row_matches_total 1 | payload_matches_total 5 | vs_current_200: {'rows': 40, 'exact_row_matches': 1, 'payload_matches': 5, 'payload_matches_vs_all_train_Y_hex_lists': 5} | within-new dup 0 payloads distinct 600

@@ -51,6 +51,23 @@ def verify_set(path, *, expected_file_sha=SET_FILE_SHA256, expected_canonical=SE
     return s
 
 
+def verify_text_set(path, *, expected_canonical=SET_CANONICAL_SHA256, expected_payload_list=SET_PAYLOAD_LIST_SHA256):
+    """Text form of the set (binary .pt files are gitignored). Recomputes the canonical sha256 from the hex int16-LE bytes and the
+    payload-list sha256, fail closed, with no torch. Returns the parsed record."""
+    import json
+    s = json.loads(Path(path).read_text())
+    rb, mb = bytes.fromhex(s["rows_int16le_hex"]), bytes.fromhex(s["mask_int16le_hex"])
+    if (tuple(s["rows_shape"]), tuple(s["mask_shape"])) != ((N_ROWS, 512), (N_ROWS, 510)) or len(rb) != N_ROWS * 512 * 2 or len(mb) != N_ROWS * 510 * 2:
+        raise SetGateError("SET_SHAPE")
+    if hashlib.sha256(rb + mb).hexdigest() != expected_canonical:
+        raise SetGateError("SET_CANONICAL_SHA256_MISMATCH")
+    if hashlib.sha256("".join(s["payloads"]).encode()).hexdigest() != expected_payload_list:
+        raise SetGateError("SET_PAYLOAD_LIST_SHA256_MISMATCH")
+    if sum(int.from_bytes(mb[i:i + 2], "little", signed=True) for i in range(0, len(mb), 2)) != N_SEGMENTS * 8 or tuple(s["seeds"]) != SEEDS:
+        raise SetGateError("SET_CONTENT")
+    return s
+
+
 def evaluate(segments_exact_by_update, n=N_SEGMENTS):
     """segments_exact_by_update: {250: int, 275: int, 300: int} on the 600-segment set. Integer arithmetic only."""
     seen = sorted(u for u in segments_exact_by_update if u in CHECKPOINTS)
