@@ -410,6 +410,44 @@ checkpoints: no new experiment was run. The set itself is committed in text form
 (`prereg/y72_heldout_v2/y72_heldout_v2_set.json`), verified against the registered hashes. Record:
 [`results/experiment_y72-heldout-v2_heldout_600.json`](../results/experiment_y72-heldout-v2_heldout_600.json).
 
+## Y72-fix2 — per-task gradient clip (SUCCESS on the registered gates, one seed)
+
+**What was asked.** Can Y72 be retained while X64 is still learned, if the two gradients are clipped separately instead of
+sharing one global clip?
+
+**What was done.** The change, its gates and a pass-probability estimate (about 0.6) were registered first
+(`prereg/y72fix2.md`, sha256 `8eaace70888b8ec6c02537354a6ec98118327505f1a482deea01221f8475a89a`). The run package was built from it, with
+the 600-set embedded and hash-checked, and passed a CPU preflight with fail-closed hash checks and an exact resume-restoration
+check. It was then run once on free Kaggle T4 x2, resuming the unchanged update-225 checkpoint
+(sha256 `a84d35bee3323cf60d0f0a09f0eece5ffb4c1e7bddbd196d4c478df15cb1b283`) to update 300, with λ = 0.25 and a per-task clip of 0.5
+(X gradient scaled by min(1, 0.5/‖g_x‖); replay gradient scaled so that λ·‖g_y‖ is capped at 0.5). No retries.
+
+**What actually happened.**
+
+| update | Y72 600-set | Y72 200-set | X64 held-out exact | X64 tokens | X32 /320 | X109 /120 |
+|---|---|---|---|---|---|---|
+| 225 (start) | 490 | n/a | 11 | 1418 | n/a | n/a |
+| 250 | 528 | 175 | 13 | 1526 | 202 | 101 |
+| 275 | 524 | 173 | 28 | 1564 | 249 | 109 |
+| 300 | 496 | 159 | 44 | 1665 | 229 | 109 |
+
+Gates, integer arithmetic, as registered: retention sum 1548 ≥ 1440 with every checkpoint ≥ 432 (**PASS**); acquisition
+X64 held-out ≥ 11 at all three checkpoints and 1665 tokens ≥ 1553, +247 tokens = +12.9 points (**PASS**, the non-gating
+10.0-point bar is also met); non-regression X32 ≥ 128 and X109 ≥ 90 at every checkpoint (**PASS**). Verdict: **SUCCESS**.
+For comparison on the 600-set, the global-clip runs summed to 1207 (λ0.25) and 1291 (λ0.5); X64 held-out at update 300
+was 44 here against 92 for λ0.5. Over 75 updates the X gradient was clipped every time (mean scale 0.175, range 0.035 to
+0.388) and the replay gradient 30 times.
+
+**What it means.** Clipping the X gradient on its own keeps Y72 at or above its starting level through 275 and still moves X64,
+which neither global-clip run managed together. The cost is slower acquisition (about half the λ0.5 global-clip rate).
+
+**Limitations.** One seed, one run, one distance pair. Y72 was still declining at 300 (528, 524, 496); the sum margin is
+108 segments against a sum SE of about 25 to 27 (see Y72-heldout-v2). The gate was registered with a 0.6 pass probability,
+so a pass is not strong evidence of a robust effect. A legacy trailing `VERDICT` print left over from an older notebook
+reports FAIL flags that are not part of this pre-registration; the registered verdict is the one above. CPU probes are not
+bit-reproducible and diverge from the GPU after about update 250. Record:
+[`results/experiment_y72-fix2_pertask_clip_600.json`](../results/experiment_y72-fix2_pertask_clip_600.json).
+
 ## Open questions
 
 1. ~~Does rehearsing prior distances inside the training mix prevent the interference, or only slow
@@ -419,8 +457,7 @@ checkpoints: no new experiment was run. The set itself is committed in text form
 2. Is the 114–120 boundary a property of the architecture or of this task's encoding?
 3. Does the learning-rate sensitivity persist at larger widths, or is it a small-model artifact?
 4. Would per-distance heads or a distance-conditioned curriculum avoid overwriting entirely?
-5. Can Y72 be retained while X64 is still learned? X and Y gradients conflict on the same parameters (mean
-   cosine −0.49; the Fisher diagonals of the two tasks are nearly the same coordinates), so there is no separate
-   set of weights to protect. CPU probes (not a run) favour a per-task gradient clip over a heavier replay
-   weight, an L2 anchor, frozen layers or gradient projection, at the price of much slower X64 learning. The
-   change and its gates are registered in [`prereg/y72fix2.md`](../prereg/y72fix2.md) and have **not** been run.
+5. Can Y72 be retained while X64 is still learned? X and Y gradients conflict on the same parameters, so there is no separate
+   set of weights to protect. **Partly answered by Y72-fix2:** a per-task gradient clip (0.5 each, λ = 0.25) passed the
+   registered retention, acquisition and non-regression gates in one run, with X64 learned about half as fast as under the
+   global clip and Y72 still declining at 300. Open: seeds, a longer run, and whether the trade-off can be moved.

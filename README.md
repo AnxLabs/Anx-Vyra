@@ -354,6 +354,36 @@ segments, 1.6 points; predicted 8.9 to 9.8). The mean of three checkpoints did n
 buys less than independence would. Curated record:
 [`results/experiment_y72-heldout-v2_heldout_600.json`](results/experiment_y72-heldout-v2_heldout_600.json).
 
+### 10. A per-task gradient clip retained Y72 and still taught X64 (SUCCESS on the registered gates, one seed)
+
+The fix registered after finding 9 ([`prereg/y72fix2.md`](prereg/y72fix2.md), committed before the run) changes one thing in the
+resumed 225 to 300 continuation: instead of one global gradient-norm clip of 1.0 over the summed loss, the X gradient and
+the replay (Y) gradient are each clipped to a norm of 0.5 on their own, then combined with the replay weight λ = 0.25
+unchanged. Scored on the 600-segment Y72 set against gates written beforehand, one run, one seed, free T4 x2 (about 2.4
+minutes of training, $0):
+
+| update | Y72, 600-set | Y72, old 200-set | X64 held-out exact / tokens | X32 | X109 |
+|---|---|---|---|---|---|
+| 225 (start, recomputed) | 490 | n/a | 11 / 1418 | n/a | n/a |
+| 250 | 528 | 175 | 13 / 1526 | 202 | 101 |
+| 275 | 524 | 173 | 28 / 1564 | 249 | 109 |
+| 300 | 496 | 159 | 44 / 1665 | 229 | 109 |
+
+All three gates pass, evaluated with integer arithmetic exactly as registered: **retention** (sum over 250, 275, 300 =
+1548 against 1440, each checkpoint ≥ 432), **acquisition** (X64 held-out ≥ 11 at every checkpoint, and 1665 tokens against
+a bar of 1553, a gain of 247 tokens or 12.9 points from 1418) and **non-regression** (X32 ≥ 128 of 320, X109 ≥ 90 of 120).
+Earlier runs on the same 600-set summed to 1207 (global clip, λ0.25) and 1291 (global clip, λ0.5). The resumed state was
+restored exactly (model hash and integer counts, zero tolerance) before training. Curated record:
+[`results/experiment_y72-fix2_pertask_clip_600.json`](results/experiment_y72-fix2_pertask_clip_600.json).
+
+What this does and does not show. The X gradient was clipped in all 75 updates (mean scale 0.175) and the replay gradient
+in 30, so the change works by shrinking the X step that was overwriting Y72. That costs speed: X64 held-out was 44 at update
+300, against 92 for the λ0.5 global-clip run, so acquisition is about half as fast. Retention was still falling at 300
+(528, 524, 496), a 28-segment drop from 275 to 300 against a single-checkpoint SD of about 9.5, so a longer run may break
+the gate. The sum margin over the gate is 108 segments against a three-checkpoint sum SE of about 25 to 27 (finding 9), and the
+registered pass probability was about 0.6. It is one seed on one distance pair. The CPU probes that motivated the change are not bit-identical
+to the GPU (their trajectories diverge after about update 250); they predicted 528 at 250 and the GPU gave 528.
+
 ## Known limitations
 
 Stated plainly, because a research repository is only useful if its edges are visible.
@@ -380,9 +410,9 @@ Stated plainly, because a research repository is only useful if its edges are vi
   shown rather than a smooth rule, so an untrained distance next door is not covered. This is inferred
   from two degraded points in one run; the proposed fix (jittering filler lengths around each target)
   was run as Experiment Y and did not work (finding 5).
-- **Retention of Y72 is not solved.** Continuing training taught X64 but dropped Y72 below its pre-registered
+- **Retention of Y72 is only partly solved.** Continuing training taught X64 but dropped Y72 below its pre-registered
   floor at every checkpoint from update 250 (findings 6 and 7), doubling the replay weight did not fix it,
-  and the 600-segment set (finding 9) fails both runs. Every one of these is a single run on a single seed. A per-task-clip fix is registered ([`prereg/y72fix2.md`](prereg/y72fix2.md)) from CPU probes only; it has not been run, and its estimated chance of passing all gates is about 0.6.
+  and the 600-segment set (finding 9) fails both runs. Every one of these is a single run on a single seed. A per-task gradient clip (finding 10) passed all registered gates in one run on one seed, with X64 acquired about half as fast as under the global clip and Y72 retention still declining at update 300; the claim is therefore limited to that run.
 - **Distance limit is empirical.** We measured where it breaks (between 114 and 120). We have not
   proven *why* beyond ruling out record count and window size.
 - **CPU reference path.** Reported results were produced on GPU and validated against CPU evaluation
