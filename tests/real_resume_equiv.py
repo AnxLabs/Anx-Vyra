@@ -16,6 +16,12 @@ X = Path(os.environ.get("VYRA_X_BUNDLE", "/workspace/vera/packaging-rootfix-2026
 PKG = Path(__file__).resolve().parents[1] / "tools" / "experiment_packaging"
 sys.path.insert(0, str(PKG)); sys.path.insert(0, str(X))
 os.environ["OMP_NUM_THREADS"] = "2"
+# Root cause of the former 1-in-4..1-in-8 flake (see REPORT in vyra-y72heldout-20261111): the FIRST call of an MKL/VML-backed
+# elementwise op (the rope shim's angles.cos()/.sin()) can return different low bits than every later call in the same process,
+# so the "straight" run (the first model forward in the process) differs by ~1e-5 from the resumed run and, through top-k
+# router ties, from everything after it. MKL conditional numerical reproducibility removes that. It must be set before torch/MKL
+# is loaded and is forced (not setdefault) so an inherited value cannot re-open the flake.
+os.environ["MKL_CBWR"] = "COMPATIBLE"
 import torch
 torch.set_num_threads(2)
 import torch.nn.functional as F
@@ -138,7 +144,7 @@ def restore(w, ck, skip=()):
             cont.COMPONENTS[name](w.m, w.opt, ck, cuda=False)
 
 
-out = {"seq": SEQ, "N": N, "M": M, "plan_start": START, "controls": {}}
+out = {"seq": SEQ, "N": N, "M": M, "plan_start": START, "controls": {}, "mkl_cbwr": os.environ.get("MKL_CBWR")}
 t0 = time.time()
 seed_all(0); A = World(); A.run(START, N + M); straight = snap(A)
 seed_all(0); B = World(); B.run(START, N)

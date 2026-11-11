@@ -17,12 +17,14 @@ X = Path(os.environ.get("VYRA_X_BUNDLE", "/workspace/vera/packaging-rootfix-2026
 
 @pytest.mark.skipif(not (X / "train_X.pt").is_file(), reason="private X bundle not available (set VYRA_X_BUNDLE)")
 def test_real_model_resume_equivalence_and_negative_controls(tmp_path):
-    env = dict(os.environ, TMPDIR=str(tmp_path), VYRA_X_BUNDLE=str(X), CUDA_VISIBLE_DEVICES="")
+    env = dict(os.environ, TMPDIR=str(tmp_path), VYRA_X_BUNDLE=str(X), CUDA_VISIBLE_DEVICES="", MKL_CBWR="AUTO")   # the script must force COMPATIBLE itself, even against a hostile inherited value
     proc = subprocess.run([sys.executable, str(Path(__file__).with_name("real_resume_equiv.py"))],
                           capture_output=True, text=True, env=env, timeout=600)
     assert proc.returncode == 0, proc.stderr[-2000:]
     res = json.loads(proc.stdout.strip().splitlines()[-1])
     print("REAL_MODEL_RESULT", json.dumps({k: res[k] for k in ("seq", "N", "M", "plan_start", "positive_mismatch", "controls", "elapsed_s")}))
+    # numerics pinned: first-call MKL/VML nondeterminism was the cause of the old intermittent failure
+    assert res["mkl_cbwr"] == "COMPATIBLE"
     assert res["positive_mismatch"] == []
     assert res["losses_straight"] == res["losses_resumed"]
     assert res["sampler"]["next_update_index"] == res["plan_start"] + res["N"]
