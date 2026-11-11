@@ -1,0 +1,53 @@
+{
+ "count_rows": 120,
+ "count_segments": 600,
+ "tokens_total": 4800,
+ "copies_per_row": 5,
+ "seeds": [
+  20263672,
+  20263772,
+  20263872
+ ],
+ "bases": {
+  "heldout_v2_block0": 20263600,
+  "heldout_v2_block1": 20263700,
+  "heldout_v2_block2": 20263800
+ },
+ "tries": [
+  40,
+  40,
+  40
+ ],
+ "pt_sha256": "12e034022357e230685a956e47658315797f164b5b11c30bd35ba4f6ca04a826",
+ "pt_bytes": 262877,
+ "pt_save_deterministic": false,
+ "canonical_rows_mask_sha256": "16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b",
+ "block_canonical_sha256": [
+  "eb8d054418e669722c6636889b46dcc7e6d434f9f104867a50edd47fb26b1111",
+  "2c4b4c9d1faad3725ed21b2e98f60262cd0628324513e8f539cf9fe2a1856516",
+  "9dc9940dd2b6014dcb578895d2b444c39851a14af8e46b9eb75582a8afbd94ee"
+ ],
+ "payload_list_sha256": "448e33d083368652f2be11c7e8b1fe958e9e6d0d111fea55d639e9c277eb693a",
+ "generator_source": "/workspace/sentinel/vyra-public/repo/experiments/y/make_corpus_Y.py",
+ "generator_source_sha256": "3a78a791711364070e0f67eb22e4e11f206d93792f285b2e982154e2b4be5c2f",
+ "generator_git_head": "c38958cb2d4ed049725b99cce0ed5bb2ceae6a43",
+ "banned_sources_counts": {
+  "probe_Q": 869,
+  "train_T2.pt": 720,
+  "train_V.pt": 720,
+  "train_W.pt": 1600,
+  "train_X.pt": 1360,
+  "train_Y.pt(all geometries + gaps)": 5160,
+  "rehearsal_Y72_40 (decoded from rows)": 200
+ },
+ "banned_total": 10589,
+ "reproduction_check": {
+  "rows_equal": true,
+  "mask_equal": true,
+  "copies": 5,
+  "tries": 40,
+  "seed": 20261672,
+  "payloads_equal": true
+ },
+ "torch": "2.14.1+cpu"
+}

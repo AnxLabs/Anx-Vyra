@@ -1,0 +1,392 @@
+{
+ "rule_id": "vyra-y72-heldout-v2-gate-v1",
+ "status": "PRE-REGISTERED by FORGE (Grok Bot) before ANY scoring of any checkpoint on this set. Specification of data + gate only; no GPU, no upload, no Kaggle action.",
+ "authorization": "AJ via VERA card t601s2471, Nov 11 2026 1:10 America/Edmonton (UTC-6): 'FORGE, CPU only, (1) generates a larger pre-registered Y72 held-out set of about 400+ segments with the existing generator and seed policy ...'",
+ "purpose": "The 200-segment Y72 held-out set has single-checkpoint SD ~5.2-5.7 segments (2.6-2.8 pp) and cannot resolve differences smaller than ~7 pp (single checkpoint) / ~4-5 pp (mean of 3). A fresh 600-segment set (never inspected before this registration) lowers the floor and, being unseen, is free of the selection that comes from having looked at the 200-set while diagnosing the drop.",
+ "generator": {
+  "source": "/workspace/sentinel/vyra-public/repo/experiments/y/make_corpus_Y.py",
+  "source_sha256": "3a78a791711364070e0f67eb22e4e11f206d93792f285b2e982154e2b4be5c2f",
+  "git_head": "c38958cb2d4ed049725b99cce0ed5bb2ceae6a43",
+  "how_used": "make_corpus_Y.py functions filler_for/piece_len/copies_for/build_needle_body/gen_rows and their constants are extracted verbatim by AST and exec'd (nothing re-implemented); distance 72, 40 rows per call, same call signature gen_rows(72, 40, seed, tag) as the original makes for the shipped 40 unseen rows",
+  "faithfulness_check": {
+   "rows_equal": true,
+   "mask_equal": true,
+   "copies": 5,
+   "tries": 40,
+   "seed": 20261672,
+   "payloads_equal": true
+  },
+  "leakage_policy": "original BANNED (probe_Q, T2/V/W/X payloads, corpus train/valid byte blobs, running used-set) EXTENDED with every train_Y.pt payload (all geometries train+unseen, gap probes) and the 40 rehearsal rows' payloads; banned counts {\"probe_Q\": 869, \"train_T2.pt\": 720, \"train_V.pt\": 720, \"train_W.pt\": 1600, \"train_X.pt\": 1360, \"train_Y.pt(all geometries + gaps)\": 5160, \"rehearsal_Y72_40 (decoded from rows)\": 200}"
+ },
+ "seed_policy": {
+  "original": "seed = base + distance; bases train 20261500, unseen 20261600, gap 20261700; rehearsal added rows 20262672 (=20261672+1000)",
+  "new_bases": {
+   "heldout_v2_block0": 20263600,
+   "heldout_v2_block1": 20263700,
+   "heldout_v2_block2": 20263800
+  },
+  "new_seeds": [
+   20263672,
+   20263772,
+   20263872
+  ],
+  "distance": 72,
+  "rows_per_seed": 40,
+  "note": "each new seed is one 40-row gen_rows call = one block of 200 segments; blocks are kept so cluster/block analyses are possible"
+ },
+ "set": {
+  "rows": 120,
+  "segments": 600,
+  "tokens": 4800,
+  "blocks": 3,
+  "segments_per_row": 5,
+  "seeds": [
+   20263672,
+   20263772,
+   20263872
+  ],
+  "canonical_definition": "sha256(rows int16 little-endian bytes + mask int16 little-endian bytes)",
+  "canonical_rows_mask_sha256": "16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b",
+  "block_canonical_sha256": [
+   "eb8d054418e669722c6636889b46dcc7e6d434f9f104867a50edd47fb26b1111",
+   "2c4b4c9d1faad3725ed21b2e98f60262cd0628324513e8f539cf9fe2a1856516",
+   "9dc9940dd2b6014dcb578895d2b444c39851a14af8e46b9eb75582a8afbd94ee"
+  ],
+  "payload_list_sha256": "448e33d083368652f2be11c7e8b1fe958e9e6d0d111fea55d639e9c277eb693a",
+  "file": "prereg/y72_heldout_v2/y72_heldout_v2.pt",
+  "file_sha256": "12e034022357e230685a956e47658315797f164b5b11c30bd35ba4f6ca04a826",
+  "file_bytes": 262877,
+  "reproducibility": "regenerating from the seeds in a second process gave the identical canonical sha256, payload-list sha256 and file sha256 (prereg/y72_heldout_v2/gen_y72_heldout_repeat.log; gen_info.json 'pt_save_deterministic' false only compares two saves inside ONE process)",
+  "tries": [
+   40,
+   40,
+   40
+  ]
+ },
+ "overlap_check": {
+  "script": "prereg/y72_heldout_v2/overlap_check.py (independent of the generator)",
+  "result_file": "prereg/y72_heldout_v2/overlap_check.json",
+  "result_file_sha256": "5c021747206c0a3b50bc3fb8b772e3ef63b277f5ba543ca00e86455c5d33428c",
+  "pass": true,
+  "seed_level": {
+   "files_scanned": 263,
+   "distinct_2026xxxx_literals_found": 11,
+   "implied_builder_seeds": 77,
+   "all_used_seeds_count": 87,
+   "new_seeds_in_used": [],
+   "pass": true
+  },
+  "content_level": {
+   "old_rows_scanned": 9627,
+   "sources_scanned": 140,
+   "exact_row_matches_total": 0,
+   "payload_matches_total": 0,
+   "filler_string_matches_total": 0,
+   "16byte_window_matches_total": 0,
+   "corpus_blob_payload_occurrences": 0
+  },
+  "within_new_set": {
+   "duplicate_rows": 0,
+   "needle_pieces": 600,
+   "distinct_payloads": 600,
+   "distinct_fillers": 600,
+   "payload_equals_query_answer_all": true
+  },
+  "vs_current_200_heldout": {
+   "rows": 40,
+   "exact_row_matches": 0,
+   "payload_matches": 0,
+   "payload_matches_vs_all_train_Y_hex_lists": 0
+  },
+  "positive_control": "prereg/y72_heldout_v2/overlap_positive_control.log: injecting ONE shipped held-out row makes the checker fail (1 exact-row match, 5 payload matches)"
+ },
+ "noise_math": {
+  "source": "prereg/y72_heldout_v2/noise_rescale.json (sha256 464c1b266abb58b8223aaa8a0102382b6f69563a88ef7ba61fa5dd0e0888eafe); inputs are read from /workspace/forge/vyra-noise-clip-study-20261110/diag/{noise_floor,gate_design}.json",
+  "assumption": "iterate/sampling noise is item-level (independent across segments): OBSERVED ICC by row -0.015 -> design effect 1 in the 200-item study, so SD in segments scales with sqrt(n) and SD in pp with 1/sqrt(n). A checkpoint-level component shared by all items would NOT shrink; that is the thing the scoring of existing checkpoints on the new set tests (prediction made BEFORE scoring).",
+  "scale_factor_k": 3.0,
+  "single_checkpoint_sd_segments": {
+   "binomial_p0.8": {
+    "old_200": 5.656854249492381,
+    "new": 9.797958971132713,
+    "old_pp": 2.8284271247461903,
+    "new_pp": 1.6329931618554518
+   },
+   "churn_model_i": {
+    "old_200": 5.212165257037297,
+    "new": 9.027735042633894,
+    "old_pp": 2.606082628518648,
+    "new_pp": 1.504622507105649
+   },
+   "within_item_ii_all8": {
+    "old_200": 5.286438174369257,
+    "new": 9.156379509079212,
+    "old_pp": 2.6432190871846286,
+    "new_pp": 1.526063251513202
+   },
+   "within_item_ii_l05_k3": {
+    "old_200": 5.131601439446885,
+    "new": 8.88819441731559,
+    "old_pp": 2.5658007197234425,
+    "new_pp": 1.4813657362192647
+   },
+   "within_item_ii_l025_k4": {
+    "old_200": 5.4083269131959835,
+    "new": 9.367496997597597,
+    "old_pp": 2.7041634565979917,
+    "new_pp": 1.5612494995995994
+   }
+  },
+  "mean_of_3_sd_segments": {
+   "independent_ckpts_5.29/sqrt3": {
+    "old_200": 3.0521265030264044,
+    "new": 5.286438174369257,
+    "old_pp": 1.5260632515132022,
+    "new_pp": 0.8810730290615428
+   },
+   "cluster_bootstrap_l025": {
+    "old_200": 3.685479765806165,
+    "new": 6.3834382046433245,
+    "old_pp": 1.8427398829030828,
+    "new_pp": 1.063906367440554
+   },
+   "cluster_bootstrap_l05": {
+    "old_200": 3.9469516310058825,
+    "new": 6.836320759919036,
+    "old_pp": 1.9734758155029413,
+    "new_pp": 1.1393867933198394
+   }
+  },
+  "mde_vs_floor": {
+   "single_checkpoint": {
+    "binomial_p0.8": {
+     "segments": 24.36262498172149,
+     "pp": 4.060437496953582
+    },
+    "churn_model_i": {
+     "segments": 22.44746318350918,
+     "pp": 3.741243863918197
+    },
+    "within_item_ii_all8": {
+     "segments": 22.767337649325462,
+     "pp": 3.794556274887577
+    },
+    "within_item_ii_l05_k3": {
+     "segments": 22.100495418655214,
+     "pp": 3.683415903109202
+    },
+    "within_item_ii_l025_k4": {
+     "segments": 23.29228128452642,
+     "pp": 3.8820468807544044
+    }
+   },
+   "mean_of_3": {
+    "independent_ckpts_5.29/sqrt3": {
+     "segments": 13.144728520569156,
+     "pp": 2.1907880867615264
+    },
+    "cluster_bootstrap_l025": {
+     "segments": 15.872419095845625,
+     "pp": 2.645403182640938
+    },
+    "cluster_bootstrap_l05": {
+     "segments": 16.99851156953868,
+     "pp": 2.8330852615897806
+    }
+   },
+   "z_alpha_plus_z_beta": 2.4865
+  },
+  "operating_characteristics_sum3": {
+   "sd_mean3_independent": {
+    "sd_mean3_segments": 5.286438174369257,
+    "by_true_level_pct": {
+     "86": {
+      "P_pass_sum3": 0.999999999996079
+     },
+     "84": {
+      "P_pass_sum3": 0.9999975781494557
+     },
+     "82": {
+      "P_pass_sum3": 0.9893179292756377
+     },
+     "81": {
+      "P_pass_sum3": 0.8782952220482008
+     },
+     "80": {
+      "P_pass_sum3": 0.5125754552804918
+     },
+     "79": {
+      "P_pass_sum3": 0.1349153577401765
+     },
+     "78": {
+      "P_pass_sum3": 0.012596442698927568
+     },
+     "76": {
+      "P_pass_sum3": 3.2660467867984266e-06
+     },
+     "74": {
+      "P_pass_sum3": 6.077804926007957e-12
+     },
+     "72": {
+      "P_pass_sum3": 0.0
+     }
+    }
+   },
+   "sd_mean3_cluster_boot_l05": {
+    "sd_mean3_segments": 6.836320759919036,
+    "by_true_level_pct": {
+     "86": {
+      "P_pass_sum3": 0.9999999389654395
+     },
+     "84": {
+      "P_pass_sum3": 0.9997961432064949
+     },
+     "82": {
+      "P_pass_sum3": 0.9624382624778876
+     },
+     "81": {
+      "P_pass_sum3": 0.8164834290759224
+     },
+     "80": {
+      "P_pass_sum3": 0.5097250840628191
+     },
+     "79": {
+      "P_pass_sum3": 0.19675050133731964
+     },
+     "78": {
+      "P_pass_sum3": 0.04173029027351771
+     },
+     "76": {
+      "P_pass_sum3": 0.00024489336134558837
+     },
+     "74": {
+      "P_pass_sum3": 7.959038506033522e-08
+     },
+     "72": {
+      "P_pass_sum3": 1.3080647676133594e-12
+     }
+    }
+   },
+   "sd_mean3_fully_correlated_single_sd": {
+    "sd_mean3_segments": 9.156379509079212,
+    "by_true_level_pct": {
+     "86": {
+      "P_pass_sum3": 0.9999609059919213
+     },
+     "84": {
+      "P_pass_sum3": 0.9958464421164468
+     },
+     "82": {
+      "P_pass_sum3": 0.9080370643266196
+     },
+     "81": {
+      "P_pass_sum3": 0.7496799949871205
+     },
+     "80": {
+      "P_pass_sum3": 0.5072612443122759
+     },
+     "79": {
+      "P_pass_sum3": 0.2620368273062531
+     },
+     "78": {
+      "P_pass_sum3": 0.09811635111436057
+     },
+     "76": {
+      "P_pass_sum3": 0.004621661292280921
+     },
+     "74": {
+      "P_pass_sum3": 4.548719963071157e-05
+     },
+     "72": {
+      "P_pass_sum3": 8.752837543646308e-08
+     }
+    }
+   }
+  },
+  "operating_characteristics_every_ckpt_ge_floor_for_comparison": {
+   "sd_single_segments": 9.156379509079212,
+   "by_true_level_pct": {
+    "84": {
+     "P_all3_independent": 0.9888566485104486,
+     "P_all3_fully_correlated": 0.9962716663065527
+    },
+    "82": {
+     "P_all3_independent": 0.7633011940502408,
+     "P_all3_fully_correlated": 0.9138999367152529
+    },
+    "80": {
+     "P_all3_independent": 0.14205207689296864,
+     "P_all3_fully_correlated": 0.5217741139542365
+    },
+    "78": {
+     "P_all3_independent": 0.0011433347953152065,
+     "P_all3_fully_correlated": 0.10456615532259039
+    },
+    "76": {
+     "P_all3_independent": 1.3550254351842967e-07,
+     "P_all3_fully_correlated": 0.005136285419446773
+    }
+   }
+  },
+  "predictions_registered_before_scoring": {
+   "single_checkpoint_sd_segments_range": [
+    8.89,
+    9.8
+   ],
+   "single_checkpoint_sd_pp_range": [
+    1.48,
+    1.63
+   ],
+   "mean_of_3_sd_segments_range": [
+    5.29,
+    6.84
+   ],
+   "adjacent_checkpoint_flip_fraction": "0.23-0.31 (as on the 200-set)",
+   "row_icc": "about 0 (no row clustering)"
+  }
+ },
+ "gate": {
+  "statement": "Y72 retention on THIS set: R = (sum over checkpoints 250, 275, 300 of segments_exact >= 1440 of 1800, i.e. mean >= 480/600 = 80.0%) AND (every checkpoint >= 432/600 = 72.0%)",
+  "checkpoints": [
+   250,
+   275,
+   300
+  ],
+  "sum3_floor_segments": 1440,
+  "per_checkpoint_guard_segments": 432,
+  "per_checkpoint_equivalent_floor_segments": 480,
+  "rescaling": "thresholds are percentages, unchanged from prereg/pertask_clip_v1.json (200-set: sum >= 480 of 600 evaluations, guard >= 144/200); counts scale by k = 3: 480*3 = 1440, 144*3 = 432. Only the noise shrinks: sd in pp falls by 1/sqrt(3).",
+  "arithmetic": "integer: sum*1000 >= 3*800*600 and count*1000 >= 720*600; no float; strict >=",
+  "boundary": {
+   "sum3": {
+    "1440": true,
+    "1439": false
+   },
+   "per_checkpoint_guard": {
+    "432": true,
+    "431": false
+   }
+  },
+  "superseding": "replaces ONLY the Y72 R gate of pertask_clip_v1 / y72fix_lambda05 for future experiments; A and N gates and verdict structure unchanged; the legacy 200-segment set remains available for comparison only and is never pooled into this gate"
+ },
+ "scoring_plan_existing_checkpoints_nongating": {
+  "purpose": "estimate the new set's noise floor and test the sqrt(n) scaling prediction above; results cannot change this registration (a revision would need a new rule_id and a new commit)",
+  "checkpoints": [
+   "lambda0.25 run: 200, 225, 250, 275, 300",
+   "lambda0.5 run: 250, 275, 300"
+  ],
+  "fail_closed": "checkpoint file sha256 must equal the pinned value (from the earlier runs' ARTIFACTS.sha256) BEFORE torch.load; set file sha256 and canonical sha256 verified before scoring",
+  "statistics": [
+   "per-checkpoint segment-exact on 600 and per block of 200",
+   "adjacent-checkpoint churn (c2w, w2c, flips)",
+   "within-item Bernoulli SD, churn-model SD, binomial SD",
+   "row ICC and cluster bootstrap over 120 rows (seed 20261111, B=20000)",
+   "mean-of-3 SE (cluster bootstrap) and its ratio to the single-checkpoint SE",
+   "observed vs predicted SD (scaling check)"
+  ]
+ },
+ "caveats": [
+  "600 segments are drawn by the same generator as the 200 (same distribution); any difficulty difference between sets is itself informative and not corrected",
+  "the sqrt(n) scaling assumes noise is item-level; a model-level component shared across items would not shrink",
+  "a single run on this set still has one seed"
+ ]
+}
