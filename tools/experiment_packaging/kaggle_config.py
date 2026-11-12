@@ -30,6 +30,9 @@ TOKEN_RE = re.compile(r"@@[A-Z0-9_]+@@")
 REQUIRED_SLUGS = ("x_bundle", "y_bundle", "ckpt200", "ckpt225", "kernel_replay175", "kernel_replay175_approved",
                   "kernel_resume300", "kernel_y72fix", "kernel_y72fix2")
 REQUIRED_KEYS = ("username", "root", "local_inputs", "slugs")
+# Slugs added after the first scrub. Optional so that older private configs keep working for the older builders; a token
+# of an absent optional slug is simply undefined, so any text that uses it fails closed ("unknown kaggle config token").
+OPTIONAL_SLUGS = ("ckpt300", "kernel_y72fix2_cont400")
 
 
 class KaggleConfigError(RuntimeError):
@@ -48,6 +51,9 @@ def _tokens(cfg):
     tokens = {"@@KUSER@@": cfg["username"], "@@KROOT@@": cfg["root"], "@@LOCAL_INPUTS@@": cfg["local_inputs"]}
     for key in REQUIRED_SLUGS:
         tokens["@@SLUG_%s@@" % key.upper()] = cfg["slugs"][key]
+    for key in OPTIONAL_SLUGS:
+        if key in cfg["slugs"]:
+            tokens["@@SLUG_%s@@" % key.upper()] = cfg["slugs"][key]
     return tokens
 
 
@@ -67,6 +73,7 @@ def load():
     missing = [k for k in REQUIRED_KEYS if not isinstance(cfg.get(k), (str, dict)) or not cfg.get(k)]
     if not missing:
         missing = ["slugs." + k for k in REQUIRED_SLUGS if not isinstance(cfg["slugs"].get(k), str) or not cfg["slugs"][k]]
+        missing += ["slugs." + k for k in OPTIONAL_SLUGS if k in cfg["slugs"] and (not isinstance(cfg["slugs"][k], str) or not cfg["slugs"][k])]
     if missing:
         raise KaggleConfigError("kaggle config %s is missing or has empty keys: %s" % (path.name, ", ".join(missing)))
     for value in _tokens(cfg).values():

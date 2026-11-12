@@ -12,6 +12,8 @@
     "kernel_replay175_approved": "example-kernel-replay175-approved",
     "kernel_resume300": "example-kernel-resume300",
     "kernel_y72fix": "example-kernel-y72fix",
-    "kernel_y72fix2": "example-kernel-y72fix2"
+    "kernel_y72fix2": "example-kernel-y72fix2",
+    "ckpt300": "example-ckpt300-dataset",
+    "kernel_y72fix2_cont400": "example-kernel-y72fix2-cont400"
   }
 }

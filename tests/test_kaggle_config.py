@@ -13,7 +13,7 @@ sys.path.insert(0, str(PKG))
 
 import kaggle_config as K  # noqa: E402
 
-BUILDERS = ("build.py", "build_continuation.py", "build_y72fix.py", "build_y72fix2.py")
+BUILDERS = ("build.py", "build_continuation.py", "build_y72fix.py", "build_y72fix2.py", "build_y72fix2_cont400.py")
 
 
 def _cfg(**over):
@@ -141,10 +141,24 @@ def test_asset_modules_carry_tokens_and_builders_expand_them(use_config):
 def test_example_template_is_placeholders_only():
     cfg = json.loads((ROOT / "kaggle_config.example.json").read_text())
     assert cfg["example"] is True
-    assert set(cfg["slugs"]) == set(K.REQUIRED_SLUGS)
+    assert set(cfg["slugs"]) == set(K.REQUIRED_SLUGS) | set(K.OPTIONAL_SLUGS)
     real = ROOT / "kaggle_config.json"
     if real.is_file():
         real_cfg = json.loads(real.read_text())
         assert not real_cfg.get("example")
         values = [real_cfg["username"], real_cfg["root"], real_cfg["local_inputs"], *real_cfg["slugs"].values()]
         assert not any(v in (ROOT / "kaggle_config.example.json").read_text() for v in values)
+
+
+def test_optional_slugs_are_optional_but_fail_closed_when_used(use_config):
+    slugs = {k: v for k, v in _cfg()["slugs"].items() if k not in K.OPTIONAL_SLUGS}
+    use_config(_cfg(slugs=slugs))
+    assert K.expand("@@SLUG_X_BUNDLE@@") == "example-x-dataset"              # older configs still load
+    with pytest.raises(K.KaggleConfigError, match="unknown kaggle config token"):
+        K.expand("@@SLUG_CKPT300@@")
+    use_config(_cfg(slugs=dict(slugs, ckpt300="")), name="empty.json")
+    with pytest.raises(K.KaggleConfigError, match="slugs.ckpt300"):
+        K.load()
+    use_config(_cfg(), name="full.json")
+    assert K.dataset_id("ckpt300") == "example-user/example-ckpt300-dataset"
+    assert K.expand("@@SLUG_KERNEL_Y72FIX2_CONT400@@") == "example-kernel-y72fix2-cont400"
