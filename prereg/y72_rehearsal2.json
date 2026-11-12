@@ -1,0 +1,276 @@
+{
+ "rule_id": "vyra-y72-rehearsal2-fresh-v1",
+ "status": "PRE-REGISTERED by FORGE (Grok Bot) before any treatment update exists anywhere and before any scoring of the treatment. CPU-only design step. NOT approved: run package, notebook, GPU, Kaggle, upload, merge (each needs a separate explicit approval from AJ).",
+ "registered_by": "FORGE (Grok Bot), Nov 12 2026 (AJ's go via VERA card t616s2556, 1:50 AM UTC-7)",
+ "question": "Resuming from the verified checkpoint_300 with the cont400 configuration, but replacing the fixed 40-row Y72 rehearsal (memorized to near-zero loss) by a fresh pool in which every rehearsal row is presented exactly once: does Y72 HOLD on the 600-set (no 375-type collapse) while X64 progresses?",
+ "motivation": {
+  "diagnosis": "docs/Y72FIX2_CONT400_SWING_DIAG.md (commit b9926d6): after the 40 replay rows were memorized (CE 0.0057 at 350), the clipped replay pull fell to 0.15 (share 0.19, 16/25 updates < 0.1) in 351-375 and its held-out transfer was weak (0.035); X drove the step and Y72 fell 504 -> 396; the replay rows then degraded and pulled Y72 back to 573 at 400 while X64 gave back 48/83 exact.",
+  "control": "the cont400 run (prereg/y72fix2_cont400.json, results ad0bf9b): same start, plan, clip and replay weight; Y600 504/396/573, X64 exact 46/124/82, tokens at 400 1658; verdict FAIL_HOLD_PROGRESS"
+ },
+ "design": {
+  "only_change_vs_control": "the source of the 2 replay rows per update. Control: rows (2s+j) % 40 of the fixed 40-row rehearsal artifact (sha256 abd8d94d...), each row presented 5 times in 301..400. Treatment: rows 2(u-301)+j (j = 0,1) of the fresh pool F200 at update u = 301..400, so every one of the 200 pool rows is presented exactly once and no replay row is ever repeated.",
+  "fresh_pool_F200": {
+   "rows": 200,
+   "segments": 1000,
+   "distance": 72,
+   "copies_per_row": 5,
+   "generator": "the existing Experiment-Y generator (experiments/y/make_corpus_Y.py, sha256 3a78a791711364070e0f67eb22e4e11f206d93792f285b2e982154e2b4be5c2f), functions extracted verbatim exactly as in prereg/y72_heldout_v2/gen_y72_heldout.py; the extraction reproduces the shipped D72 unseen rows exactly (log)",
+   "seeds": [
+    20264672,
+    20264772,
+    20264872,
+    20264972,
+    20265072
+   ],
+   "seed_policy": "new role bases 20264600 + 100k (k = 0..4) + distance 72, one gen_rows(72, 40, seed) call per block; none of these seeds appears as a literal anywhere in the generator repo or this repo (overlap_pool.json)",
+   "ban_set": "11189 payloads: the 600-set's 600, every train_Y payload (all geometries train + unseen incl. the 200-set, gap probes), the 40 rehearsal rows' 200, probe_Q and train_T2/V/W/X; plus the running used set",
+   "canonical_rows_mask_sha256": "d4315c338f44855e1162099c4a42792f0368c60a854f6d047930fa865ef976d8",
+   "payload_list_sha256": "c860f59bf25862b706ba36a6277ff45310ab65c4d1130c75945e8e92c43dc4b8",
+   "block_canonical_sha256": [
+    "3ed3407adffbacd1fe14ff9cd544da8e4b1b12d6bee3abb4edebcf4d5b8f42a4",
+    "4cb6f56e5a5febe1328d3a53d3f64301f755e15e38bb534cffbf6fd6eb63532b",
+    "a412b1caf9dc1c01d5993d2c11e3ffd17e10d6c2c5aef9d4f473391fcb8ab595",
+    "71335081967172e3960ef8cf84e420be0285bd3ffae48997270fab0aa60361a6",
+    "77ce311cd3c13b1aa598f5e7f20272f494e4941e8af194f0185f5dc590c2eb9e"
+   ],
+   "deterministic": "regenerated twice: identical canonical and payload-list sha256",
+   "text_form": "prereg/y72_rehearsal2/y72_fresh_pool_F200_set.json",
+   "order": "pool row index = 2*(u-301)+j; block k serves updates 301+20k .. 320+20k",
+   "refresh_rule_beyond_400": "not part of this experiment; a longer run would need new blocks with new bases 20265100 + 100k under the same ban rule, registered before use"
+  },
+  "disjointness_from_eval": {
+   "declared": "NO overlap with any evaluation set. Pool payloads vs the 600-set, the 200-set, the Y72 train 8 rows and the 40 rehearsal rows: 0 shared payloads, 0 exact rows, 0 shared 16-byte and 32-byte windows; no pool payload occurs anywhere in the 600-set rows (overlap_pool.json). Pool and 600-set share only the generator and its corpus filler source, exactly as the 600-set shares them with the original training rows.",
+   "why_not_overlap": "drawing rehearsal from the 600-set would make the hold gate measure memorization; the pool is a disjoint draw from the same distribution instead"
+  },
+  "why_it_is_not_memorized": "each pool row is seen once, so at its presentation its loss is a held-out loss. Measured at the five control checkpoints (rows not yet seen): pool CE / held-out 200-set CE = 0.88, 0.88, 0.95, 0.85, 0.78 at 300/325/350/375/400, vs 0.061, 0.050, 0.054, 0.075, 0.070 for the 40-row set. The signal falls only as far as Y72 generalization itself falls.",
+  "task_clip": 0.5,
+  "replay_lambda": 0.25,
+  "replay_rows_per_update": 2,
+  "clip_and_lambda_kept": "kept. With fresh rows 0.25*|g_rep| exceeds 0.5 on 88/80/76/100/32% of probed updates at the 300/325/350/375/400 states, so the replay contribution is mostly at the 0.5 cap (parity with X); lambda would not change a bound update, and changing tau would add a second change and confound the attribution",
+  "unchanged": [
+   "resume from checkpoint_300 (sha256 5df9a3f8bcf04dbeac6b15d96a312e3fa3b425aef60639a603ece3c19fea45a3) with the same full v2 restore and the same exact-restoration check as prereg/y72fix2_cont400.json",
+   "plan400 entries 300..399 (plan400_full_sha256 d9f132342c569d400a737bc7739ff9b87b427858984006437db3fda7f654d943)",
+   "SliceAdam LR 3e-4, expert-selection union, per-task clip 0.5 on gx and on 0.25*gy",
+   "evaluation code, held-out sets incl. the 600-set (canonical sha256 16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b), no reseed",
+   "updates 301..400, evals and complete checkpoints at 325, 350, 375, 400; one run, stop at 400"
+  ],
+  "gate_checkpoints": [
+   350,
+   375,
+   400
+  ],
+  "observation_only_checkpoint": 325
+ },
+ "design_evidence": {
+  "rule": "measurements on the CONTROL's saved checkpoints, CPU, read-only restore, nothing trained; design held-out proxy = the 200-set (not gated); the 600-set was not used in any design measurement of this step",
+  "files_sha256": {
+   "fresh_pool_gen_info.json": "af3547db8e6327e1b72a28ea099ea09bb94ec2c465464be2685b767b3699ded3",
+   "gen_fresh_pool.log.txt": "83945ba04c6476e7c40e2583593e180ced5e5a12949aebcc9bc2df487fb50235",
+   "gen_fresh_pool.py": "96dac8152caa85e84950f38deb56dd4bb6ea104098b12650f7e976df43b65a11",
+   "lab3.py": "6255e1ea79aece6449b4327f4d211e07599a7668ef383f264b29d5343b39b79b",
+   "noise_math.json": "8b44f4058e9bac71835937a6cbc6fca70f2e26d7cfab15826ec195b378753f22",
+   "noise_math.py": "9c12331b30ac369e0a36996c45d7d1a7db80b2dd592408c305f5363fbd8abd2d",
+   "overlap_pool.json": "e36f5b107dd923dedf4f699398ae9a1988fff4fe69effdcaa6b4c28e58a8e3de",
+   "overlap_pool.py": "99ef44a31baf9f514ce9560e60f11eb6d109afd730041a30e656892f3acac378",
+   "signal_probe.json": "86fb2d9a06d5971b468d327efbc670acafbb31014f10299f90ea37e60af6a22a",
+   "signal_probe.log.txt": "8c8ad06051199d5bd89ce358ab86fbf0e7dfbfcbfa6e9a98b32677c6c7dea1ef",
+   "signal_probe.py": "ba1defd797b3a796eb96dffd8981c08a61796eddae53dae852d3114580c6ada5",
+   "signal_probe_summary.json": "5745d05287e1f524567b2625447f07751ce09e40743c9f2426650b96a6eaa943",
+   "summarize_probe.py": "8b2f39ddfc1abbecc88b8cc4c3752aaf845734fde37862eb4569ff55f7ec879c"
+  },
+  "pool_text_form_sha256": "604bba8a47c81bd3edc0f347487d908bc54769f48981fb0dac1f9252c96c3b45",
+  "per_state_window_probe": {
+   "definition": "for each of the 25 updates after checkpoint u, the 2-row replay gradient g, contribution c = min(0.25|g|, 0.5), cos(P g, g_eval) with the checkpoint's Adam preconditioner P, and first-order eval-loss change -LR g_eval . P(c g/|g|); ratios are reported, absolute first-order values are not calibrated",
+   "replay_contribution_median_control_rows": {
+    "300": 0.046,
+    "325": 0.028,
+    "350": 0.069,
+    "375": 0.5,
+    "400": 0.008
+   },
+   "replay_contribution_median_fresh_pool": {
+    "300": 0.5,
+    "325": 0.5,
+    "350": 0.5,
+    "375": 0.5,
+    "400": 0.14
+   },
+   "updates_with_contribution_below_0.1_of_25": {
+    "control_rows": [
+     17,
+     16,
+     13,
+     8,
+     21
+    ],
+    "fresh_pool": [
+     2,
+     3,
+     1,
+     0,
+     8
+    ]
+   },
+   "cosP_to_200set_gradient": {
+    "control_rows": [
+     0.067,
+     0.072,
+     0.052,
+     0.137,
+     0.018
+    ],
+    "fresh_pool": [
+     0.109,
+     0.125,
+     0.094,
+     0.14,
+     0.03
+    ]
+   },
+   "first_order_200set_pull_ratio_fresh_over_control": [
+    6.06,
+    3.76,
+    4.42,
+    1.85,
+    12.46
+   ],
+   "first_order_X64_cost_ratio_fresh_over_control": [
+    8.88,
+    3.83,
+    7.05,
+    1.76,
+    32.87
+   ],
+   "X64_cost_per_unit_Y_benefit": {
+    "control_rows": [
+     0.67,
+     1.39,
+     1.57,
+     0.93,
+     4.48
+    ],
+    "fresh_pool": [
+     0.98,
+     1.42,
+     2.5,
+     0.88,
+     11.81
+    ]
+   },
+   "rejected_error_weighted_top2_of_40": "the two highest-loss rows of the 40-row set at each state: cos(P g, g_200set) 0.057, 0.112, 0.006, 0.198, 0.002 - at the collapse-entry state (350) and when fit (400) its direction carries almost nothing of held-out Y72"
+  },
+  "caveat": "these are counterfactual measurements at the control's states; the treatment's own trajectory will visit different states. Only the 300 state is shared exactly (same checkpoint).",
+  "tracked_script_note": "the tracked gen_fresh_pool.py and lab3.py read the local bundle directories from VYRA_Y_BUNDLE / VYRA_X_BUNDLE instead of hard-coded paths (identifier rule); the tracked generator was re-run and reproduces the canonical and payload-list sha256 above"
+ },
+ "arithmetic": {
+  "rule": "integer cross-multiplication only; no float, no rounding",
+  "operators": ">= for every floor and the gain threshold",
+  "module": "a gates module mirroring tools/experiment_packaging/y72fix2_cont400_gates.py, to be written only if a run package is approved; a test must pin it to this file"
+ },
+ "gates": {
+  "R_hold": {
+   "text": "Y72 HOLDS: sum over checkpoints 350, 375, 400 of Y72 segment-exact on the 600-segment set >= 1440 of 1800 AND every one of those checkpoints >= 432 of 600",
+   "sum3": 1440,
+   "each_checkpoint": 432,
+   "rule_reused": "prereg/y72fix2_cont400.json R_hold, unchanged (vyra-y72-heldout-v2-gate-v1 percentages, mean >= 80.0%, each >= 72.0%)",
+   "boundary": {
+    "sum3": {
+     "1440": true,
+     "1439": false
+    },
+    "each": {
+     "432": true,
+     "431": false
+    }
+   }
+  },
+  "A_progress": {
+   "text": "X64 CONTINUES TO PROGRESS: X64 held-out segment-exact >= 44 of 240 at EVERY gate checkpoint (350, 375, 400) AND X64 held-out tokens_correct(400) >= 1723 of 1920 (gain >= 3.0 pp from 1665 at 300)",
+   "x64_seg_each": 44,
+   "tokens_at_400_min": 1723,
+   "rule_reused": "prereg/y72fix2_cont400.json A_progress, unchanged (same resume point, same values)",
+   "boundary": {
+    "seg": {
+     "44": true,
+     "43": false
+    },
+    "tokens_at_400": {
+     "1723": true,
+     "1722": false
+    }
+   }
+  },
+  "N_nonregression": {
+   "text": "X32 held-out >= 128/320 and X109 >= 90/120 at EVERY gate checkpoint (350, 375, 400)",
+   "x32_min": 128,
+   "x109_min": 90,
+   "rule_reused": "unchanged"
+  }
+ },
+ "verdict_table": {
+  "SUCCESS": "R and A and N",
+  "FAIL_HOLD": "not R, A, N",
+  "FAIL_PROGRESS": "R, not A, N (reading: the fresh signal stops the Y72 collapse but X64 does not progress)",
+  "FAIL_NONREGRESSION": "R, A, not N",
+  "other_combinations": "FAIL_<failed gates joined by _>",
+  "NOT_EVALUATED_BEFORE_400": "history lacks any of 350, 375, 400"
+ },
+ "manipulation_checks_nongating": {
+  "purpose": "verify from the run's own per-update clip record that the signal behaved as designed; reported next to the verdict, never change it",
+  "M1_no_starved_window": "in each 25-update window (301-325, 326-350, 351-375, 376-400) the median replay contribution alpha_y*|g_y| is >= 0.10 (control: 0.095, 0.202, 0.072, 0.217)",
+  "M2_not_memorized": "in each window the median replay loss is >= 0.005 (control: 0.0044, 0.0079, 0.0039, 0.0038); the probe's lowest fresh-pool median was 0.0058 at the 400 state, so M2 can fail if Y72 generalization becomes very good, which is then reported as such",
+  "M3_presentation_once": "every pool row index 0..199 presented exactly once (structural)"
+ },
+ "expected_effect": {
+  "what_is_supported": "a mechanism-level prediction: the treatment removes the replay starvation that preceded the control's collapse (contribution median 0.5 vs 0.069 at the 350 state; 1 vs 13 of 25 updates below 0.1) and its direction is better aligned with held-out Y72 (cos 0.09-0.14 vs 0.05-0.07 at 300-375). Predicted 600-set outcome: no checkpoint collapse (each >= 432) and a sum >= 1440.",
+  "what_is_NOT_supported": "a calibrated effect size in 600-set segments. The probe is first-order and counterfactual (control states), there is one control trajectory, and the parent run slid 524 -> 496 over updates 276-300 with a replay share of 0.27 (contribution median 0.13), i.e. without a starved window like the control's, so steady replay alone has not been shown to hold Y72. No segment gain is claimed.",
+  "detectable_contrast": "the gate separates the two outcomes that matter with high power: the control's observed profile 504/396/573 passes R with probability 0.000; a hold at the 300 level (496 flat) passes with 0.96-0.97; a single dip to 440-460 with the other checkpoints near 500-520 passes with about 0.77; a parent-like slide 480/464/448 passes with 0.03-0.04",
+  "x64_direction": "expected to be HARDER than in the control: the fresh signal's first-order X64 cost is 1.8-8.9x the control rows' at 300-375 (and costs at least as much X per unit of Y benefit at 3 of 4 states: 0.98/1.42/2.50 vs 0.67/1.39/1.57), because the held-out Y72/X64 conflict (cosine about -0.8) is unchanged. The control gained no X64 tokens (1665 -> 1658)."
+ },
+ "noise_math": {
+  "y72_600_set": "single-checkpoint SD 9.5; mean-of-3 SE 8.3-9.0 (measured), i.e. intra-run correlation 0.64-0.85; SE of the sum 25-27. Monte Carlo (noise_math.json, 400k draws): P(R pass | flat true level m) = 0.11-0.13 at 470, 0.27-0.29 at 475, 0.50 at 480, 0.71-0.73 at 485, 0.87-0.89 at 490, 0.96-0.97 at 496, >= 0.997 at 505",
+  "x64": "token gain SD 21 (sqrt2 x 15): P(tokens >= 1723 | true gain g) = 0.003 at 0, 0.04 at 20, 0.20 at 40, 0.51 at 58, 0.86 at 80, 0.999 at 120; exact >= 44 at all three checkpoints (SD 6, independent approx.) = 0.15 at a flat 44, 0.64 at 50, 0.92 at 55, 0.99 at 60",
+  "x32_x109": "floors far below observed values; only catch a regression"
+ },
+ "pass_probability": {
+  "R": {
+   "point": 0.55,
+   "range": [
+    0.35,
+    0.75
+   ],
+   "basis": "judgment, not computed: the starvation that preceded the control's only R failure is absent at every probed state, but the treatment trajectory is unmeasured and the parent slid without starvation"
+  },
+  "A": {
+   "point": 0.15,
+   "range": [
+    0.05,
+    0.3
+   ],
+   "basis": "judgment, not computed: the control made no token progress with a weaker replay pull; the fresh signal pulls harder along the same conflict axis"
+  },
+  "N": {
+   "point": 0.95
+  },
+  "SUCCESS": {
+   "point": 0.1,
+   "range": [
+    0.03,
+    0.25
+   ]
+  },
+  "most_likely_named_outcome": "FAIL_PROGRESS (R passes, A fails) or FAIL_HOLD_PROGRESS",
+  "plain_statement": "This design tests whether a non-memorizable rehearsal signal removes the Y72 collapse. It is not expected to make X64 progress; a SUCCESS is unlikely. FAIL_PROGRESS would confirm the mechanism and isolate the remaining limit as the structural Y72/X64 conflict."
+ },
+ "not_gating": [
+  "checkpoint 325",
+  "Y72 200-set counts",
+  "per-update clip record and manipulation checks M1-M3",
+  "paired difference vs the control run at each checkpoint (same start, same plan; only the replay rows differ)"
+ ],
+ "run_package": {
+  "approved_now": "nothing beyond this registration and its evidence",
+  "needs_separate_approval": "building a run package/notebook, creating any Kaggle dataset (it would hold checkpoint_300.pt and the pool file whose canonical sha256 is above), and one GPU run",
+  "identifiers": "no kernel or dataset slugs, usernames or Kaggle paths in tracked files"
+ }
+}

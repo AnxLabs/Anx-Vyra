@@ -1,0 +1,62 @@
+{
+ "count_rows": 200,
+ "count_segments": 1000,
+ "tokens_total": 8000,
+ "copies_per_row": 5,
+ "seeds": [
+  20264672,
+  20264772,
+  20264872,
+  20264972,
+  20265072
+ ],
+ "bases": {
+  "fresh_pool_block0": 20264600,
+  "fresh_pool_block1": 20264700,
+  "fresh_pool_block2": 20264800,
+  "fresh_pool_block3": 20264900,
+  "fresh_pool_block4": 20265000
+ },
+ "tries": [
+  40,
+  40,
+  40,
+  40,
+  40
+ ],
+ "pt_sha256": "617f0da0e65ac0073fd826ade45f4cb1a955b4e955a8176e02343e8e033e1117",
+ "pt_bytes": 437061,
+ "pt_save_deterministic": false,
+ "canonical_rows_mask_sha256": "d4315c338f44855e1162099c4a42792f0368c60a854f6d047930fa865ef976d8",
+ "block_canonical_sha256": [
+  "3ed3407adffbacd1fe14ff9cd544da8e4b1b12d6bee3abb4edebcf4d5b8f42a4",
+  "4cb6f56e5a5febe1328d3a53d3f64301f755e15e38bb534cffbf6fd6eb63532b",
+  "a412b1caf9dc1c01d5993d2c11e3ffd17e10d6c2c5aef9d4f473391fcb8ab595",
+  "71335081967172e3960ef8cf84e420be0285bd3ffae48997270fab0aa60361a6",
+  "77ce311cd3c13b1aa598f5e7f20272f494e4941e8af194f0185f5dc590c2eb9e"
+ ],
+ "payload_list_sha256": "c860f59bf25862b706ba36a6277ff45310ab65c4d1130c75945e8e92c43dc4b8",
+ "generator_source": "/workspace/sentinel/vyra-public/repo/experiments/y/make_corpus_Y.py",
+ "generator_source_sha256": "3a78a791711364070e0f67eb22e4e11f206d93792f285b2e982154e2b4be5c2f",
+ "generator_git_head": "c38958cb2d4ed049725b99cce0ed5bb2ceae6a43",
+ "banned_sources_counts": {
+  "probe_Q": 869,
+  "train_T2.pt": 720,
+  "train_V.pt": 720,
+  "train_W.pt": 1600,
+  "train_X.pt": 1360,
+  "train_Y.pt(all geometries + gaps)": 5160,
+  "rehearsal_Y72_40 (decoded from rows)": 200,
+  "y72_heldout_v2_600set": 600
+ },
+ "banned_total": 11189,
+ "reproduction_check": {
+  "rows_equal": true,
+  "mask_equal": true,
+  "copies": 5,
+  "tries": 40,
+  "seed": 20261672,
+  "payloads_equal": true
+ },
+ "torch": "2.14.1+cpu"
+}

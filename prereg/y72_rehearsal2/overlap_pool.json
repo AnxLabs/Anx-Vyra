@@ -1,0 +1,50 @@
+{
+ "pool_rows": 200,
+ "pool_payloads": 1000,
+ "pool_payloads_distinct": 1000,
+ "payload_overlap": {
+  "Y600": 0,
+  "Y200_unseen_payloads": 0,
+  "Y72_train_payloads": 0,
+  "REP40": 0
+ },
+ "exact_row_matches": {
+  "Y600": 0,
+  "Y200": 0,
+  "REP40": 0,
+  "Y72_train8": 0
+ },
+ "shared_16byte_windows": {
+  "Y600": 0,
+  "Y200": 0,
+  "REP40": 0,
+  "Y72_train8": 0
+ },
+ "pool_16byte_windows_total": 99000,
+ "shared_32byte_windows": {
+  "Y600": 0,
+  "Y200": 0,
+  "REP40": 0,
+  "Y72_train8": 0
+ },
+ "pool_32byte_windows_total": 95800,
+ "pool_payload_bytes_found_anywhere_in_600set_rows": 0,
+ "seed_check": {
+  "files_scanned": 310,
+  "pool_seeds": [
+   20264672,
+   20264772,
+   20264872,
+   20264972,
+   20265072
+  ],
+  "pool_seeds_found_as_literals_elsewhere": [],
+  "known_y72_seeds": [
+   20261672,
+   20262672,
+   20263672,
+   20263772,
+   20263872
+  ]
+ }
+}
