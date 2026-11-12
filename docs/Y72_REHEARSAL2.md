@@ -2,8 +2,26 @@
 
 Specification: [`prereg/y72_rehearsal2.md`](../prereg/y72_rehearsal2.md) (`prereg/y72_rehearsal2.json`, sha256 `b02c4510…c577cab`,
 registered at fbc9638 before any of this code existed). This document describes how that specification became a closed notebook. Nothing
-in it changes the registered design, pool or gates. **Status: built and CPU-preflighted only.** Nothing has been uploaded, no kernel has
-been created, and nothing has run on a GPU. Each of those needs its own approval.
+in it changes the registered design, pool or gates. **Status: built and CPU-preflighted only.** No kernel has been created and nothing has
+run on a GPU. Each of those needs its own approval.
+
+## Repack under Kaggle's 1 MB source limit (supersedes notebook `c3ab200b`)
+The first build of this package (`c3ab200b…2be2d8e`, commit 00af1ad, 1,708,020 bytes) was refused by Kaggle's SaveKernel with a
+bare `400 Bad Request`: Kaggle rejects a kernel source of 1 MB (1,048,576 bytes) or more. The embedded F200 pool (841,576 bytes of
+hex JSON) and the 600-segment set made up most of the size. No kernel was created and nothing ran.
+
+* `notebook_pack.py` stores **all** embedded assets as one deterministic blob, built as JSON (sorted keys, compact, ASCII), then
+  zlib level 9, then base64. The rehearsal artifact bytes are stored as zlib level 9 plus base64. In the notebook, the standard
+  library decompresses both. Before decompressing, the notebook checks the blob's SHA-256 (`BOOTSTRAP_PACK_CORRUPT`). After
+  decompressing, the unchanged per-asset SHA-256 loop (`BOOTSTRAP_CORRUPT name`), the dependency lock, the rehearsal pin, and the
+  pool module's registered hashes (canonical `d4315c33…76d8`) all run as before.
+* The decompressed asset texts and rehearsal bytes are byte-identical to those of `c3ab200b`: the same 29 assets, the same
+  `asset_hashes` line, the same dependency lock and the same kernel metadata. Only how they are stored changed.
+* Size gate (fail-closed): the builder refuses to write a notebook of 1,048,576 bytes or more (`NOTEBOOK_TOO_LARGE`).
+  `validate_y72_rehearsal2.py` re-checks the file on disk before any sandbox run, and it requires an oversized copy to be
+  refused. `python notebook_pack.py check NOTEBOOK` runs the same gate on its own.
+* The new notebook is **`3d5756c8…a15e4b`, 383,178 bytes** (36.5 % of the limit). Hashes are in `packages/y72_rehearsal2/SHA256SUMS`.
+  Commit 00af1ad still rebuilds `c3ab200b`, kept for the record. It must not be pushed.
 
 ## What was built
 * `build_y72_rehearsal2.py` is derived from `build_y72fix2_cont400.py`, so it uses the same source notebook, archives, rehearsal artifact
@@ -31,7 +49,8 @@ been created, and nothing has run on a GPU. Each of those needs its own approval
   whose key is absent fails closed. The checkpoint_300 dataset key (`ckpt300`) is the one cont400 already uses.
 
 ## Checks before launch (CPU only)
-* Two builds with different hash seeds and time zones, plus a build from a clean clone, are byte-identical: notebook sha256 `c3ab200b…2be2d8e`.
+* Two builds with different hash seeds and time zones, plus a build from a clean clone, are byte-identical: notebook sha256
+  `3d5756c8…a15e4b` (383,178 bytes, under the 1 MB gate).
   All hashes are in `packages/y72_rehearsal2/SHA256SUMS`. The five earlier notebooks still rebuild to their recorded hashes.
 * Bubblewrap preflight (no network, no GPU) passes with 58 locked files, including the checkpoint, the pool and the prereg. It rejects:
   * a flipped checkpoint byte;
@@ -39,7 +58,9 @@ been created, and nothing has run on a GPU. Each of those needs its own approval
   * a wrong checkpoint file name;
   * checkpoint_225 presented as checkpoint_300;
   * a tampered pool asset;
-  * a substituted pool with consistent hashes and lock.
+  * a substituted pool with consistent hashes and lock;
+  * a changed compressed blob (`BOOTSTRAP_PACK_CORRUPT`);
+  * an oversized notebook (`NOTEBOOK_TOO_LARGE`).
 * CPU smoke on the real checkpoint_300 (updates 301–302) restores exactly: the model-state sha and every integer count match. It presents
   pool rows [0,1] and [2,3] once each, and writes a checkpoint whose sampler record carries the F200 rule with next rows [4,5]. Smoke numbers
   are not gate measurements.

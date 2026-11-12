@@ -16,12 +16,16 @@ skipped and the eval-count comparison is recorded, not fatal (the model-state ha
 import ast, json, shutil, subprocess, sys
 from pathlib import Path
 import kaggle_config as K
+import notebook_pack as NP
 
 nb, inputs, runtime, ckpt_dir, rehearsal, work = sys.argv[1:7]
 end = int(sys.argv[7]) if len(sys.argv) > 7 else 302
 nb, inputs, runtime, ckpt_dir, rehearsal, work = map(Path, (nb, inputs, runtime, ckpt_dir, rehearsal, work))
 code = "".join(json.loads(nb.read_text())["cells"][0]["source"])
-assets = ast.literal_eval(next(n for n in ast.parse(code).body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", None) == "assets").value)
+assets = NP.embedded_assets(code)            # packed form: hash-checked below against the notebook's asset_hashes
+import hashlib
+_h = ast.literal_eval(next(l for l in code.splitlines() if l.startswith("asset_hashes="))[len("asset_hashes="):])
+assert set(_h) == set(assets) and all(hashlib.sha256(assets[n].encode()).hexdigest() == _h[n] for n in assets), "SMOKE_ASSET_HASH"
 upd = (end,)
 SUBS = [
     ("treatment.py", "HARD=600; SOFT=598; STEPS=400; START=300; RB=2; EVAL_AT={325,350,375,400}",

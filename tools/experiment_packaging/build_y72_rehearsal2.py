@@ -5,7 +5,9 @@ Never regenerates data, never trains, never uploads, never submits. Built from
 the same source notebook, builder pin and archive audit as the 200-update
 build (build.py), so the 200-update treatment is reproduced first and only then
 rewritten by continue300, continue225_y72fix2, continue300_y72fix2 and continue_y72_rehearsal2. The pool F200 is embedded
-as a text asset after its registered hashes are re-verified. The checkpoint is bound by SHA-256 into the
+as a text asset after its registered hashes are re-verified. All assets and the rehearsal bytes are stored compressed
+(notebook_pack: zlib 9 + base64, hash-checked after decompression) and the builder refuses a notebook at or over Kaggle's
+1 MB source limit. The checkpoint is bound by SHA-256 into the
 dependency lock; the builder refuses a checkpoint file that does not match.
 """
 import argparse
@@ -20,7 +22,8 @@ from resume300_y72fix2 import (CHECKPOINT_UPDATES, CKPT300_BYTES, CKPT300_DATASE
 from name_order import used_before_binding
 from plan_extension400 import PINNED_CONTINUATION_SHA256, PINNED_FULL_PLAN_SHA256, PINNED_PREFIX300_PLAN_SHA256, PINNED_PREFIX_PLAN_SHA256
 from rehearsal_artifact import PINNED_SHA256, validate_rehearsal_file
-from runtime_contract import assert_notebook_contract, rehearsal_bootstrap
+from runtime_contract import assert_notebook_contract
+import notebook_pack as NP
 import y72_rehearsal2_pool as r2pool
 import kaggle_config as K
 
@@ -128,14 +131,14 @@ def build(args):
 from pathlib import Path
 notebook_start=time.monotonic()
 """
-    program += "assets=" + repr(assets) + "\n"
+    program += NP.assets_bootstrap(assets)
     program += "asset_hashes=" + repr({name: hashlib.sha256(text.encode()).hexdigest() for name, text in assets.items()}) + "\n"
     program += K.expand("""if set(assets)!=set(asset_hashes): raise ValueError('BOOTSTRAP_ASSET_SET_MISMATCH')
 for name,text in assets.items():
     if hashlib.sha256(text.encode()).hexdigest()!=asset_hashes[name]:raise ValueError('BOOTSTRAP_CORRUPT '+name)
     Path('@@KROOT@@/working',name).write_text(text)
 sys.path.insert(0,'@@KROOT@@/working')
-""") + rehearsal_bootstrap(replay_path.read_bytes()) + K.expand("""from dependency_gate import verify_lock
+""") + NP.rehearsal_bootstrap_z(replay_path.read_bytes()) + K.expand("""from dependency_gate import verify_lock
 verified=verify_lock()
 Path('@@KROOT@@/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
 from input_preflight import validate, XID, YID
@@ -162,6 +165,8 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
             early = used_before_binding(text, predefined={"build"} if name == "treatment.py" else ())
             if early:
                 raise ValueError(f"USE_BEFORE_BINDING {name} {early}")
+    if NP.embedded_assets(program) != assets:
+        raise ValueError("PACK_ROUNDTRIP")
     built = {
         "nbformat": 4,
         "nbformat_minor": 5,
@@ -175,9 +180,12 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
             "source": program.splitlines(keepends=True),
         }],
     }
+    data = NP.notebook_bytes(built)
+    NP.check_size(len(data))                                 # refuse to emit a notebook Kaggle would reject (>= 1 MB)
     kernel = out / "kernel"
     kernel.mkdir(exist_ok=True)
-    (kernel / "replay.ipynb").write_text(json.dumps(built, indent=1, sort_keys=True) + "\n")
+    (kernel / "replay.ipynb").write_bytes(data)
+    NP.check_notebook_file(kernel / "replay.ipynb")
     meta = {
         "id": K.expand("@@KUSER@@/@@SLUG_KERNEL_Y72_REHEARSAL2@@"),
         "title": K.expand("@@SLUG_KERNEL_Y72_REHEARSAL2@@"),
@@ -199,6 +207,9 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "source_notebook_sha256": sha(source),
         "builder_source_sha256": BUILDER_SHA,
         "notebook_sha256": sha(kernel / "replay.ipynb"),
+        "notebook_bytes": (kernel / "replay.ipynb").stat().st_size,
+        "notebook_size_limit_bytes": NP.KAGGLE_SOURCE_LIMIT,
+        "packing": {"method": NP.METHOD, "zlib_level": NP.ZLIB_LEVEL},
         "assets": lock["assets"],
         "checkpoint_dataset": datasets["C"],
         "plan_prefix_sha256": PINNED_PREFIX_PLAN_SHA256,

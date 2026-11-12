@@ -264,9 +264,22 @@ NB = os.environ.get("VYRA_Y72_REHEARSAL2_NOTEBOOK")
 
 @pytest.mark.skipif(not NB, reason="built notebook path not provided")
 def test_built_notebook_assets_and_hashes():
+    import notebook_pack as NP
+    assert Path(NB).stat().st_size < NP.KAGGLE_SOURCE_LIMIT
+    NP.check_notebook_file(NB)
     code = "".join(json.loads(Path(NB).read_text())["cells"][0]["source"])
-    node = next(n for n in ast.parse(code).body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", None) == "assets")
-    assets = ast.literal_eval(node.value)
+    assert not any(line.startswith("assets=") and not line.startswith("assets=json.loads(") for line in code.splitlines())
+    assets = NP.embedded_assets(code)
+    blob = ast.literal_eval(next(l for l in code.splitlines() if l.startswith("assets_z="))[len("assets_z="):])
+    blob_sha = ast.literal_eval(next(l for l in code.splitlines() if l.startswith("assets_z_sha256="))[len("assets_z_sha256="):])
+    assert hashlib.sha256(blob.encode()).hexdigest() == blob_sha and NP.pack_assets(assets) == blob
+    hashes = ast.literal_eval(next(l for l in code.splitlines() if l.startswith("asset_hashes="))[len("asset_hashes="):])
+    assert set(hashes) == set(assets) and all(hashlib.sha256(assets[n].encode()).hexdigest() == hashes[n] for n in assets)
+    import base64, zlib
+    import rehearsal_artifact as ra
+    enc = ast.literal_eval(next(l for l in code.splitlines() if l.startswith("embedded_rehearsal_b64="))[len("embedded_rehearsal_b64="):])
+    raw = zlib.decompress(base64.b64decode(enc))
+    assert hashlib.sha256(raw).hexdigest() == ra.PINNED_SHA256 and len(raw) == ra.PINNED_BYTES
     for name in ("y72_rehearsal2_gates.py", "y72_rehearsal2_runtime.py", "y72_rehearsal2_pool.py", "y72_fresh_pool_F200_set.json",
                  "resume300_y72fix2.py", "plan_extension400.py", "y72fix2_runtime.py", "clip_scheme.py", "y72_heldout_v2_set.json",
                  "prereg_y72_rehearsal2.json"):

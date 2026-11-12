@@ -1,4 +1,7 @@
-"""Isolated validation of the built Y72 rehearsal2 notebook (CPU preflight + 6 notebook-level rejections; prereg/y72_rehearsal2.json).
+"""Isolated validation of the built Y72 rehearsal2 notebook (size gate + CPU preflight + rejections; prereg/y72_rehearsal2.json).
+
+First, fail closed: the built notebook must be under Kaggle's 1 MB source limit (notebook_pack.check_notebook_file), and an
+oversized copy of it must be refused by the same gate. CKPT is the checkpoint_300.pt FILE (not a folder).
 
 Sandbox: bubblewrap, cleared environment, no network, no GPU. The checkpoint is
 mounted read-only at its exact planned path. Preflight exits before any
@@ -6,18 +9,28 @@ forward, backward, optimizer step or checkpoint torch.load; it proves the
 bootstrap, the asset/dataset lock (including the checkpoint SHA-256) and the
 input pins and the 400-entry plan pins. Negatives: checkpoint dataset absent, one flipped checkpoint byte,
 right dataset but wrong file name, the real checkpoint_225 presented as checkpoint_300.pt, one flipped character in the embedded
-pool asset (bootstrap hash), and a different pool embedded with consistently re-computed asset hashes and lock (the pool module's
+pool asset with the compressed blob's hash left stale (BOOTSTRAP_PACK_CORRUPT), the pool asset changed inside a consistently
+re-packed blob with stale per-asset hashes (BOOTSTRAP_CORRUPT), and a different pool embedded with consistently re-computed asset hashes and lock (the pool module's
 registered hashes refuse it). The pass case also checks the pool record and the training-presentation disjointness audit.
 Nothing is uploaded or submitted.
 """
 import hashlib, json, shutil, subprocess, sys, time
 from pathlib import Path
 import kaggle_config as K
+import notebook_pack as NP
 
 package, inputs, runtime, ckpt, work_root, logs = map(Path, sys.argv[1:7])
 tools = Path(__file__).parent.resolve()
 MOUNT = K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT300@@")
 logs.mkdir(parents=True, exist_ok=True)
+if not ckpt.is_file():
+    sys.exit("CHECKPOINT_ARG_MUST_BE_FILE " + ckpt.name)
+_nb = package / "kernel" / "replay.ipynb"
+try:
+    _size = NP.check_notebook_file(_nb)
+except NP.PackError as exc:                               # fail closed before any sandbox run
+    (logs / "validate_y72_rehearsal2_summary.json").write_text(json.dumps([{"case": "size_gate_package", "ok": False, "error": str(exc)}], indent=1))
+    sys.exit("SIZE_GATE " + str(exc))
 
 
 def command(work, ckpt_mount, notebook=None):
@@ -100,27 +113,61 @@ import ast as _ast
 nb_path = package / "kernel" / "replay.ipynb"
 nb = json.loads(nb_path.read_text())
 prog = "".join(nb["cells"][0]["source"])
-key = '"rows_int16le_hex": "'
-i = prog.index(key) + len(key) + 40
-flip = prog[:i] + ("1" if prog[i] != "1" else "2") + prog[i + 1:]
-tampered = work_root / "nb_tampered_pool" / "replay.ipynb"; tampered.parent.mkdir(parents=True, exist_ok=True)
-tampered.write_text(json.dumps(dict(nb, cells=[dict(nb["cells"][0], source=flip.splitlines(keepends=True))]), indent=1, sort_keys=True) + "\n")
-results.append(run("negative_tampered_pool_asset", None, ckpt.parent, "BOOTSTRAP_CORRUPT y72_fresh_pool_F200_set.json", tampered))
-# a different pool (one scored byte of row 0 changed) embedded with consistently re-computed asset hashes and dependency lock
+
+
+def size_case(name, path, expect_ok):
+    try:
+        n = NP.check_notebook_file(path); msg = "NOTEBOOK_SIZE_OK %d" % n; passed = True
+    except NP.PackError as exc:
+        msg = str(exc); passed = False
+    (logs / f"validate_{name}.log").write_text(msg + "\n")
+    return {"case": name, "expected": "PASS" if expect_ok else "NOTEBOOK_TOO_LARGE", "ok": passed == expect_ok and (expect_ok or msg.startswith("NOTEBOOK_TOO_LARGE")),
+            "bytes": path.stat().st_size, "limit": NP.KAGGLE_SOURCE_LIMIT, "message": msg}
+
+
+results.insert(0, size_case("size_gate_package", nb_path, True))
+# the same notebook padded with one comment line to just over the limit must be refused by the preflight size gate
+big = work_root / "nb_oversized" / "replay.ipynb"; big.parent.mkdir(parents=True, exist_ok=True)
+pad = "#" + "p" * (NP.KAGGLE_SOURCE_LIMIT - nb_path.stat().st_size + 16) + "\n"
+big.write_bytes(NP.notebook_bytes(dict(nb, cells=[dict(nb["cells"][0], source=(prog + pad).splitlines(keepends=True))])))
+results.append(size_case("negative_oversized_notebook", big, False))
+shutil.rmtree(big.parent)
+
 lines = prog.splitlines(keepends=True)
-ia = next(k for k, l in enumerate(lines) if l.startswith("assets=")); ih = next(k for k, l in enumerate(lines) if l.startswith("asset_hashes="))
-assets = _ast.literal_eval(lines[ia][len("assets="):])
-pj = json.loads(assets["y72_fresh_pool_F200_set.json"]); h = pj["rows_int16le_hex"]; j = 4 * 300
+iz = next(k for k, l in enumerate(lines) if l.startswith("assets_z=")); izs = next(k for k, l in enumerate(lines) if l.startswith("assets_z_sha256="))
+ih = next(k for k, l in enumerate(lines) if l.startswith("asset_hashes="))
+blob = _ast.literal_eval(lines[iz][len("assets_z="):])
+assets = NP.unpack_assets(blob)
+
+
+def write_nb(name, new_lines):
+    path = work_root / name / "replay.ipynb"; path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(NP.notebook_bytes(dict(nb, cells=[dict(nb["cells"][0], source="".join(new_lines).splitlines(keepends=True))])))
+    return path
+
+
+# 1) one character of the compressed blob changed, its SHA-256 left as built
+k = len(blob) // 2
+L = list(lines); L[iz] = "assets_z=" + repr(blob[:k] + ("A" if blob[k] != "A" else "B") + blob[k + 1:]) + "\n"
+results.append(run("negative_tampered_pack_blob", None, ckpt.parent, "BOOTSTRAP_PACK_CORRUPT", write_nb("nb_tampered_pack", L)))
+# 2) one hex character of the pool asset changed, blob re-packed with a consistent blob SHA-256, per-asset hashes left as built
+a2 = dict(assets); s = a2["y72_fresh_pool_F200_set.json"]; key = '"rows_int16le_hex": "'; i = s.index(key) + len(key) + 40
+a2["y72_fresh_pool_F200_set.json"] = s[:i] + ("1" if s[i] != "1" else "2") + s[i + 1:]
+b2 = NP.pack_assets(a2)
+L = list(lines); L[iz] = "assets_z=" + repr(b2) + "\n"; L[izs] = "assets_z_sha256=" + repr(hashlib.sha256(b2.encode()).hexdigest()) + "\n"
+results.append(run("negative_tampered_pool_asset", None, ckpt.parent, "BOOTSTRAP_CORRUPT y72_fresh_pool_F200_set.json", write_nb("nb_tampered_pool", L)))
+# 3) a different pool (one scored byte of row 0 changed) embedded with consistently re-computed blob hash, asset hashes and lock
+a3 = dict(assets)
+pj = json.loads(a3["y72_fresh_pool_F200_set.json"]); h = pj["rows_int16le_hex"]; j = 4 * 300
 pj["rows_int16le_hex"] = h[:j] + ("41" if h[j:j + 2] != "41" else "42") + h[j + 2:]
-assets["y72_fresh_pool_F200_set.json"] = json.dumps(pj, indent=1)
-lock = json.loads(assets["dependency_lock.json"])
-lock["assets"]["y72_fresh_pool_F200_set.json"] = hashlib.sha256(assets["y72_fresh_pool_F200_set.json"].encode()).hexdigest()
-assets["dependency_lock.json"] = json.dumps(lock, indent=2, sort_keys=True)
-lines[ia] = "assets=" + repr(assets) + "\n"
-lines[ih] = "asset_hashes=" + repr({n: hashlib.sha256(t.encode()).hexdigest() for n, t in assets.items()}) + "\n"
-swapped = work_root / "nb_swapped_pool" / "replay.ipynb"; swapped.parent.mkdir(parents=True, exist_ok=True)
-swapped.write_text(json.dumps(dict(nb, cells=[dict(nb["cells"][0], source="".join(lines).splitlines(keepends=True))]), indent=1, sort_keys=True) + "\n")
-results.append(run("negative_swapped_pool_consistent_hashes", None, ckpt.parent, "REHEARSAL2_POOL", swapped))
+a3["y72_fresh_pool_F200_set.json"] = json.dumps(pj, indent=1)
+lock = json.loads(a3["dependency_lock.json"])
+lock["assets"]["y72_fresh_pool_F200_set.json"] = hashlib.sha256(a3["y72_fresh_pool_F200_set.json"].encode()).hexdigest()
+a3["dependency_lock.json"] = json.dumps(lock, indent=2, sort_keys=True)
+b3 = NP.pack_assets(a3)
+L = list(lines); L[iz] = "assets_z=" + repr(b3) + "\n"; L[izs] = "assets_z_sha256=" + repr(hashlib.sha256(b3.encode()).hexdigest()) + "\n"
+L[ih] = "asset_hashes=" + repr({n: hashlib.sha256(t.encode()).hexdigest() for n, t in a3.items()}) + "\n"
+results.append(run("negative_swapped_pool_consistent_hashes", None, ckpt.parent, "REHEARSAL2_POOL", write_nb("nb_swapped_pool", L)))
 (logs / "validate_y72_rehearsal2_summary.json").write_text(json.dumps(results, indent=1))
 print(json.dumps(results, indent=1))
 sys.exit(0 if all(r["ok"] for r in results) else 1)
