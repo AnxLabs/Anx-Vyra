@@ -1,0 +1,158 @@
+{
+ "question": "Continuing the successful y72fix2 run (per-task clip 0.5, replay weight 0.25) from update 300 to 400 with no change: does Y72 hold on the pre-registered 600-segment set while X64 keeps progressing? (pre-registered as vyra-y72fix2-cont400-v1)",
+ "design": "One run, one seed, resume from the update-300 checkpoint of the y72fix2 run (sha256 verified before load; the restored model reproduced the recorded integer counts at 300 exactly, tolerance 0), updates 301..400 with the v1 plan streams continued, same per-task clip 0.5 and replay weight 0.25. Evaluation and full checkpoints at 325/350/375/400; gates at 350/375/400. Free Kaggle T4 x2, no retries.",
+ "setup": {
+  "resume_update": 300,
+  "final_update": 400,
+  "replay_weight": 0.25,
+  "task_clip": 0.5,
+  "segments_y72_600set": 600,
+  "x64_heldout_segments": 240,
+  "x64_heldout_tokens": 1920,
+  "seed": 0,
+  "restoration_at_300": {
+   "model_state_matches": true,
+   "x64_counts_match": true,
+   "eval_counts_match": true,
+   "tolerance": 0
+  },
+  "baseline_at_300": {
+   "y72_600set": 496,
+   "x64_heldout_segments": 44,
+   "x64_heldout_tokens": 1665,
+   "x32": 229,
+   "x109": 109
+  }
+ },
+ "final": {
+  "by_checkpoint": [
+   {
+    "update": 325,
+    "y72_600set_segments_exact": 490,
+    "y72_600set_tokens_correct": 4688,
+    "y72_200set_segments_exact": 166,
+    "x64_heldout_segments_exact": 55,
+    "x64_heldout_tokens_correct": 1671,
+    "x64_train_segments_exact": 163,
+    "x64_train_tokens_correct": 1838,
+    "x32_segments_exact": 258,
+    "x109_segments_exact": 111
+   },
+   {
+    "update": 350,
+    "y72_600set_segments_exact": 504,
+    "y72_600set_tokens_correct": 4698,
+    "y72_200set_segments_exact": 170,
+    "x64_heldout_segments_exact": 46,
+    "x64_heldout_tokens_correct": 1618,
+    "x64_train_segments_exact": 163,
+    "x64_train_tokens_correct": 1835,
+    "x32_segments_exact": 263,
+    "x109_segments_exact": 105
+   },
+   {
+    "update": 375,
+    "y72_600set_segments_exact": 396,
+    "y72_600set_tokens_correct": 4570,
+    "y72_200set_segments_exact": 138,
+    "x64_heldout_segments_exact": 124,
+    "x64_heldout_tokens_correct": 1764,
+    "x64_train_segments_exact": 210,
+    "x64_train_tokens_correct": 1889,
+    "x32_segments_exact": 266,
+    "x109_segments_exact": 105
+   },
+   {
+    "update": 400,
+    "y72_600set_segments_exact": 573,
+    "y72_600set_tokens_correct": 4773,
+    "y72_200set_segments_exact": 189,
+    "x64_heldout_segments_exact": 82,
+    "x64_heldout_tokens_correct": 1658,
+    "x64_train_segments_exact": 195,
+    "x64_train_tokens_correct": 1865,
+    "x32_segments_exact": 248,
+    "x109_segments_exact": 109
+   }
+  ],
+  "gates": {
+   "R_hold": {
+    "rule": "sum over 350/375/400 of Y72 (600-set) >= 1440 and each >= 432",
+    "y600": [
+     504,
+     396,
+     573
+    ],
+    "sum": 1473,
+    "sum_floor": 1440,
+    "sum_pass": true,
+    "each_floor": 432,
+    "each_pass": false,
+    "pass": false
+   },
+   "A_progress": {
+    "rule": "X64 held-out >= 44/240 at each gate checkpoint and tokens at 400 >= 1723/1920 (+3.0 pp from 1665)",
+    "x64_heldout_segments": [
+     46,
+     124,
+     82
+    ],
+    "seg_floor": 44,
+    "seg_pass": true,
+    "tokens_at_400": 1658,
+    "tokens_min": 1723,
+    "gain_tokens_from_1665": -7,
+    "gain_pass": false,
+    "pass": false
+   },
+   "N_nonregression": {
+    "rule": "X32 >= 128/320 and X109 >= 90/120 at each gate checkpoint",
+    "x32": [
+     263,
+     266,
+     248
+    ],
+    "x109": [
+     105,
+     105,
+     109
+    ],
+    "pass": true
+   }
+  },
+  "verdict_registered": "FAIL_HOLD_PROGRESS",
+  "per_task_clip_telemetry": {
+   "updates_logged": 100,
+   "x_gradient_clipped_updates": 98,
+   "replay_gradient_clipped_updates": 31,
+   "mean_alpha_x": 0.2855,
+   "mean_norm_x_gradient": 2.115,
+   "mean_norm_replay_gradient": 3.552,
+   "mean_cos_x_vs_replay": -0.0498,
+   "mean_unclipped_combined_norm": 2.545
+  },
+  "observation_non_gating": "Both tasks oscillate strongly between checkpoints and in opposite directions: at 375 Y72 fell to 396 while X64 held-out exact rose to 124; at 400 Y72 rose to 573 (the highest of any run) while X64 fell to 82 exact and 1658 tokens. The sum over the three gate checkpoints (1473) clears 1440, but 375 is below the 432 guard.",
+  "prediction_vs_outcome": {
+   "registered_pass_probability": 0.4,
+   "cpu_smoke_two_updates_y600": [
+    465,
+    429
+   ],
+   "note": "the CPU smoke drop was a warning only; the GPU trajectory at 325 was 490"
+  }
+ },
+ "verdict": "FAIL_HOLD_PROGRESS on the pre-registered gates. R fails on the every-checkpoint guard (Y72 396 < 432 at 375; the sum 1473 passes), A fails on the token gain (1658 < 1723 at 400, -0.4 pp from 1665; held-out exact stayed >= 44 at every gate checkpoint), N passes. One run, one seed.",
+ "limitations": [
+  "one seed, one run, no retry",
+  "the checkpoint-to-checkpoint swings (Y72 504/396/573, X64 exact 46/124/82) are far larger than the measurement noise (single-checkpoint SD about 9.5 and 5-6 segments), so they are training-trajectory effects, not evaluation noise",
+  "a FAIL at fixed checkpoints does not show the average level is below the floors; it shows that, with this configuration, neither task is stable over 100 more updates"
+ ],
+ "cost": {
+  "gpu_hours_kaggle_quota_displayed": "about 0.17 (14.56 h -> 14.73 h of 30 h, two rounded displays)",
+  "usd": 0,
+  "trainer_s": 75.2,
+  "arm_wall_s": 160.0,
+  "notebook_cell_wall_s": 203.8
+ },
+ "_curation_warning": "GENERIC SCRUBBER ONLY. No per-experiment adapter exists for this experiment. This record was produced by dropping known-unsafe keys; it has NOT been reviewed for content that is private without being identifiable by key name. Review every field before publishing."
+}
