@@ -13,7 +13,7 @@ The smoke's eval counts are NOT a gate measurement. The continuation gates run
 unchanged except `cpu_smoke=True` (VYRA_CONT_CPU_SMOKE=1): CUDA RNG restore is
 skipped and the eval-count comparison is recorded, not fatal (the model-state hash stays fatal). Nothing is uploaded.
 """
-import ast, json, shutil, subprocess, sys
+import ast, json, os, shutil, subprocess, sys
 from pathlib import Path
 import kaggle_config as K
 import notebook_pack as NP
@@ -21,6 +21,10 @@ import notebook_pack as NP
 nb, inputs, runtime, ckpt_dir, rehearsal, work = sys.argv[1:7]
 end = int(sys.argv[7]) if len(sys.argv) > 7 else 302
 nb, inputs, runtime, ckpt_dir, rehearsal, work = map(Path, (nb, inputs, runtime, ckpt_dir, rehearsal, work))
+# VYRA_SMOKE_RELOCATE=1: mount the checkpoint at a NON-pinned path and hand the trainer that path the way the notebook does after
+# resolving it by hash (VYRA_CKPT300_PATH); load_checkpoint300 still verifies SHA-256 and size before torch.load.
+RELOCATE = os.environ.get("VYRA_SMOKE_RELOCATE") == "1"
+CKPT_TARGET = K.expand("@@KROOT@@/input/relocated-checkpoint") if RELOCATE else K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT300@@")
 code = "".join(json.loads(nb.read_text())["cells"][0]["source"])
 assets = NP.embedded_assets(code)            # packed form: hash-checked below against the notebook's asset_hashes
 import hashlib
@@ -65,7 +69,7 @@ cmd = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--cleare
        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--ro-bind", str(runtime), "/runtime",
        "--ro-bind", str(x), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
        "--ro-bind", str(y), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@"),
-       "--ro-bind", str(ckpt_dir), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_CKPT300@@"),
+       "--ro-bind", str(ckpt_dir), CKPT_TARGET] + (["--setenv", "VYRA_CKPT300_PATH", CKPT_TARGET + "/checkpoint_300.pt"] if RELOCATE else []) + [
        "--bind", str(work), K.expand("@@KROOT@@/working"), "--chdir", K.expand("@@KROOT@@/working"),
        "/runtime/bin/python", "-u", K.expand("@@KROOT@@/working/treatment.py")]
 rc = subprocess.run(cmd, timeout=3300).returncode

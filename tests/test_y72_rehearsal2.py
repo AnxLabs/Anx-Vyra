@@ -262,6 +262,16 @@ def test_builder_refuses_a_changed_pool_or_prereg(tmp_path, monkeypatch):
 NB = os.environ.get("VYRA_Y72_REHEARSAL2_NOTEBOOK")
 
 
+def test_builder_ckpt_path_patch_is_count_asserted():
+    import build_y72_rehearsal2 as b
+    t = "x\n" + b.CKPT_LINE + "y\n"
+    out = b.patch_ckpt_path(t)
+    assert out.count("CKPT_PATH=os.environ.get('VYRA_CKPT300_PATH') or ") == 1 and b.CKPT_LINE not in out
+    for bad in ("x\n", t + b.CKPT_LINE):
+        with pytest.raises(ValueError, match="CKPT_PATH_LINE_COUNT"):
+            b.patch_ckpt_path(bad)
+
+
 @pytest.mark.skipif(not NB, reason="built notebook path not provided")
 def test_built_notebook_assets_and_hashes():
     import notebook_pack as NP
@@ -289,6 +299,13 @@ def test_built_notebook_assets_and_hashes():
     assert hashlib.sha256(assets["prereg_y72_rehearsal2.json"].encode()).hexdigest() == PREREG_SHA256
     assert hashlib.sha256(assets["y72_fresh_pool_F200_set.json"].encode()).hexdigest() == pool.TEXT_SHA256
     t = assets["treatment.py"]
+    assert "mount_resolver.py" in assets and "CKPT_PATH=os.environ.get('VYRA_CKPT300_PATH') or " in t
+    prog_lines = code.splitlines()
+    i_res = next(k for k, l in enumerate(prog_lines) if l.startswith("mounts=resolve_and_write("))
+    assert prog_lines[i_res + 1] == "verified=verify_lock(mounts['resolved_lock_path'])"
+    assert "mapping={XID:mounts['roots']['X'],YID:mounts['roots']['Y']}" in prog_lines
+    assert next(k for k, l in enumerate(prog_lines) if l.startswith("os.environ['VYRA_CKPT300_PATH']=")) < next(
+        k for k, l in enumerate(prog_lines) if l.startswith("result=launch_gpu("))
     assert "STEPS=400; START=300" in t and "idx=r2pool.indices(s)" in t and "clip_scheme.combine(_pp,_gx,_gy,lam,'pertask',0.5)" in t
     for banned in cr.BANNED:
         assert banned not in t

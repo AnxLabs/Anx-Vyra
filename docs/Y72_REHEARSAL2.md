@@ -20,8 +20,32 @@ hex JSON) and the 600-segment set made up most of the size. No kernel was create
 * Size gate (fail-closed): the builder refuses to write a notebook of 1,048,576 bytes or more (`NOTEBOOK_TOO_LARGE`).
   `validate_y72_rehearsal2.py` re-checks the file on disk before any sandbox run, and it requires an oversized copy to be
   refused. `python notebook_pack.py check NOTEBOOK` runs the same gate on its own.
-* The new notebook is **`3d5756c8…a15e4b`, 383,178 bytes** (36.5 % of the limit). Hashes are in `packages/y72_rehearsal2/SHA256SUMS`.
+* The repacked notebook was `3d5756c8…a15e4b`, 383,178 bytes (36.5 % of the limit). It is superseded by `14b5a99a` below.
   Commit 00af1ad still rebuilds `c3ab200b`, kept for the record. It must not be pushed.
+
+## Mount diagnosis and hash-located datasets (supersedes notebook `3d5756c8`)
+Notebook `3d5756c8` (commit ec46d3c) was pushed once and stopped about 50 s later with `MISSING_DATASET_ROOT C`. That was after the
+asset bootstrap and before any GPU work, so nothing ran and nothing was scored. What the saved outputs determine:
+* The package side is identical to the cont400 package that ran successfully. These match byte-for-byte: the dependency lock's
+  dataset entries (C/X/Y ids, pinned mounts and file hashes), `dependency_gate.py`, and the kernel metadata's dataset sources and
+  settings. Those three mount paths all verified in the cont400 kernel.
+* Kaggle's own record of the failed kernel lists all three datasets. In that session, the pinned checkpoint directory did not exist.
+* Undetermined: where, or whether, Kaggle mounted the checkpoint dataset in that session. The old notebook never listed its inputs.
+  The lock checks C first, so the X/Y mounts are unknown too. Kaggle is publicly reported to mount datasets under either
+  `<input>/datasets/<owner>/<slug>` or `<input>/<slug>`, depending on how they are attached. That fits the symptom but is
+  unverified for this kernel.
+
+Fix (packaging only; same prereg, pool, gates, checkpoint):
+* `mount_resolver.py` prints and saves a redacted listing of the input root before any dataset check (`INPUT_LISTING`; the user
+  and slugs are replaced by `<user>` and `<slug:ROLE>`).
+* It uses each dataset's pinned directory when that exists. A missing or wrong file there stays fatal in the unchanged gate.
+* Only when the pinned directory is absent does it look for the one directory that holds all locked files at the locked SHA-256.
+  None found raises `MISSING_DATASET_ROOT`; more than one raises `AMBIGUOUS_DATASET_ROOT`.
+* The unchanged `dependency_gate.verify_lock` then hashes every locked file at the resolved mount. X/Y are passed to input
+  validation from the resolved roots. The trainer receives the checkpoint path as `VYRA_CKPT300_PATH`, and `load_checkpoint300`
+  still verifies its SHA-256 and size before `torch.load`.
+* New notebook `14b5a99a…4b902c`, 386,403 bytes, under the 1 MB gate. Preflight adds three cases: a checkpoint at a non-pinned
+  path found by hash (passes), a non-pinned wrong-hash copy (refused), and two matching copies (refused as ambiguous).
 
 ## What was built
 * `build_y72_rehearsal2.py` is derived from `build_y72fix2_cont400.py`, so it uses the same source notebook, archives, rehearsal artifact
@@ -50,9 +74,9 @@ hex JSON) and the 600-segment set made up most of the size. No kernel was create
 
 ## Checks before launch (CPU only)
 * Two builds with different hash seeds and time zones, plus a build from a clean clone, are byte-identical: notebook sha256
-  `3d5756c8…a15e4b` (383,178 bytes, under the 1 MB gate).
+  `14b5a99a…4b902c` (386,403 bytes, under the 1 MB gate). Hashes are in `packages/y72_rehearsal2/SHA256SUMS`.
   All hashes are in `packages/y72_rehearsal2/SHA256SUMS`. The five earlier notebooks still rebuild to their recorded hashes.
-* Bubblewrap preflight (no network, no GPU) passes with 58 locked files, including the checkpoint, the pool and the prereg. It rejects:
+* Bubblewrap preflight (no network, no GPU) passes with 59 locked files (now including `mount_resolver.py`), including the checkpoint, the pool and the prereg. It rejects:
   * a flipped checkpoint byte;
   * a missing dataset;
   * a wrong checkpoint file name;

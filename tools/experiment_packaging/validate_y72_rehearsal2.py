@@ -33,7 +33,10 @@ except NP.PackError as exc:                               # fail closed before a
     sys.exit("SIZE_GATE " + str(exc))
 
 
-def command(work, ckpt_mount, notebook=None):
+RELOCATED = K.expand("@@KROOT@@/input/relocated-checkpoint")       # a non-pinned mount point (no user, no slug)
+
+
+def command(work, ckpt_mount, notebook=None, ckpt_target=None, extra=()):
     cmd = ["bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--clearenv",
            "--setenv", "PATH", "/runtime/bin:/usr/bin", "--setenv", "HOME", "/tmp", "--setenv", "CUDA_VISIBLE_DEVICES", "",
            "--setenv", "VYRA_PREFLIGHT_ONLY", "1", "--setenv", "OMP_NUM_THREADS", "2", "--setenv", "MKL_NUM_THREADS", "2",
@@ -47,13 +50,15 @@ def command(work, ckpt_mount, notebook=None):
             "--ro-bind", str(inputs / K.expand("@@SLUG_X_BUNDLE@@")), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@"),
             "--ro-bind", str(inputs / K.expand("@@SLUG_Y_BUNDLE@@")), K.expand("@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@")]
     if ckpt_mount is not None:
-        cmd += ["--ro-bind", str(ckpt_mount), MOUNT]
+        cmd += ["--ro-bind", str(ckpt_mount), ckpt_target or MOUNT]
+    for src, dst in extra:
+        cmd += ["--ro-bind", str(src), dst]
     cmd += ["--bind", str(work), K.expand("@@KROOT@@/working"), "--chdir", K.expand("@@KROOT@@/working"),
             "/runtime/bin/python", "-I", "/tools/execute_notebook.py", "/tools/replay.ipynb"]
     return cmd
 
 
-def run(name, work, ckpt_mount, expect, notebook=None):
+def run(name, work, ckpt_mount, expect, notebook=None, ckpt_target=None, extra=(), methods=None):
     work = work_root / name
     if work.exists():
         shutil.rmtree(work)
@@ -61,10 +66,20 @@ def run(name, work, ckpt_mount, expect, notebook=None):
     log = logs / f"validate_{name}.log"
     t = time.monotonic()
     with log.open("w") as h:
-        p = subprocess.run(command(work, ckpt_mount, notebook), stdout=h, stderr=subprocess.STDOUT, timeout=300)
+        p = subprocess.run(command(work, ckpt_mount, notebook, ckpt_target, extra), stdout=h, stderr=subprocess.STDOUT, timeout=300)
     text = log.read_text()
     ok = (p.returncode == 0) if expect is None else (p.returncode != 0 and expect in text)
     out = {"case": name, "returncode": p.returncode, "expected": expect or "PASS", "ok": ok, "elapsed_s": round(time.monotonic() - t, 2)}
+    out["listing_in_log"] = "INPUT_LISTING " in text                   # the redacted input listing must precede any dataset check
+    ok = ok and (out["listing_in_log"] or expect in ("BOOTSTRAP_PACK_CORRUPT", "BOOTSTRAP_CORRUPT y72_fresh_pool_F200_set.json"))
+    out["ok"] = ok
+    mr = work / "mount_resolution.json"
+    if mr.is_file():
+        out["mount_resolution"] = {k: v["method"] for k, v in json.loads(mr.read_text()).items()}
+    if methods is not None:
+        out["methods_expected"] = methods
+        ok = ok and out.get("mount_resolution") == methods
+        out["ok"] = ok
     if expect is None and ok:
         r = json.loads((work / "replay_out" / "result.json").read_text())
         timeout = json.loads((work / "timeout_status.json").read_text())
@@ -93,13 +108,19 @@ def run(name, work, ckpt_mount, expect, notebook=None):
 
 
 results = []
-results.append(run("preflight_pass", None, ckpt.parent, None))
+results.append(run("preflight_pass", None, ckpt.parent, None, methods={"C": "pinned", "X": "pinned", "Y": "pinned"}))
+# the checkpoint dataset mounted at a NON-pinned path with the right file: found by hash, preflight passes, dependency gate re-hashes it
+results.append(run("relocated_checkpoint_found_by_hash", None, ckpt.parent, None, ckpt_target=RELOCATED,
+                   methods={"C": "hash", "X": "pinned", "Y": "pinned"}))
 bad = work_root / "stage_corrupt"; bad.mkdir(parents=True, exist_ok=True)
 raw = bytearray(ckpt.read_bytes()); raw[len(raw) // 3] ^= 1
 (bad / "checkpoint_300.pt").write_bytes(bytes(raw))
 renamed = work_root / "stage_wrongname"; renamed.mkdir(parents=True, exist_ok=True)
 shutil.copy2(ckpt, renamed / "checkpoint_300_copy.pt")
-results.append(run("negative_corrupt_checkpoint", None, bad, "CORRUPT_DATASET_FILE"))
+results.append(run("negative_corrupt_checkpoint", None, bad, "CORRUPT_DATASET_FILE"))           # pinned path exists, wrong hash: fatal
+results.append(run("negative_relocated_corrupt_checkpoint", None, bad, "MISSING_DATASET_ROOT C", ckpt_target=RELOCATED))  # non-pinned, wrong hash
+results.append(run("negative_relocated_two_copies", None, ckpt.parent, "AMBIGUOUS_DATASET_ROOT C", ckpt_target=RELOCATED,
+                   extra=((ckpt.parent, RELOCATED + "-copy"),)))
 results.append(run("negative_missing_checkpoint_dataset", None, None, "MISSING_DATASET_ROOT C"))
 results.append(run("negative_wrong_checkpoint_filename", None, renamed, "MISSING_DATASET_FILE"))
 if len(sys.argv) > 7:                       # the real checkpoint_225 presented under the name checkpoint_300.pt

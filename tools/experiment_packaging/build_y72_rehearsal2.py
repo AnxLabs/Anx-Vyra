@@ -8,7 +8,9 @@ rewritten by continue300, continue225_y72fix2, continue300_y72fix2 and continue_
 as a text asset after its registered hashes are re-verified. All assets and the rehearsal bytes are stored compressed
 (notebook_pack: zlib 9 + base64, hash-checked after decompression) and the builder refuses a notebook at or over Kaggle's
 1 MB source limit. The checkpoint is bound by SHA-256 into the
-dependency lock; the builder refuses a checkpoint file that does not match.
+dependency lock; the builder refuses a checkpoint file that does not match. Datasets are located by file hash where Kaggle
+actually mounted them (mount_resolver), after a redacted listing of the inputs is printed to the kernel log; the unchanged
+dependency gate then hashes every locked file at that mount.
 """
 import argparse
 import ast
@@ -32,7 +34,7 @@ K.load()  # fail closed at import if the private kaggle config is missing
 HERE = Path(__file__).parent
 EXTRA_ASSETS = ("continuation.py", "plan_extension.py", "plan_extension400.py", "resume300_y72fix2.py", "y72fix_gates.py",
                 "y72_rehearsal2_gates.py", "y72_heldout_v2.py", "y72fix2_runtime.py", "y72_rehearsal2_runtime.py", "clip_scheme.py",
-                "y72_rehearsal2_pool.py")
+                "y72_rehearsal2_pool.py", "mount_resolver.py")
 PREREG_SHA256 = "b02c4510ea2072b715a324715506b97db2f66fbe2d356f637c04d38abc577cab"
 PROSE_SHA256 = "4354a1fb233df5c583d6be3037b57a50fe9860f8b34f06936593184210f15d40"
 SET_FILE = Path(__file__).resolve().parents[2] / "prereg" / "y72_heldout_v2" / "y72_heldout_v2_set.json"
@@ -55,6 +57,17 @@ def check_checkpoint(path):
         "files": {"checkpoint_300.pt": CKPT300_SHA256},
         "bytes": CKPT300_BYTES,
     }
+
+
+CKPT_LINE = "CKPT_PATH=" + repr(K.expand(CKPT300_MOUNT) + "/checkpoint_300.pt") + "\n"
+
+
+def patch_ckpt_path(treatment):
+    """The trainer loads checkpoint_300 from the mount the notebook resolved by hash (env VYRA_CKPT300_PATH, set by the notebook);
+    load_checkpoint300 still verifies its SHA-256 and size before torch.load. Without the variable (CPU smoke) the pinned path is used."""
+    if treatment.count(CKPT_LINE) != 1:
+        raise ValueError("CKPT_PATH_LINE_COUNT")
+    return treatment.replace(CKPT_LINE, "CKPT_PATH=os.environ.get('VYRA_CKPT300_PATH') or " + CKPT_LINE[len("CKPT_PATH="):])
 
 
 def check_pool(path):
@@ -96,7 +109,7 @@ def build(args):
     )
     assets["input_preflight.py"] = preflight
     treatment, _ = prepare_treatment(assets["treatment.py"], builder_text)
-    assets["treatment.py"] = apply_rehearsal2(treatment)
+    assets["treatment.py"] = patch_ckpt_path(apply_rehearsal2(treatment))
     for name in ("dependency_gate.py", "replay_telemetry.py", "x64_checkpoint.py", "rehearsal_artifact.py",
                  "rehearsal_Y72_40_manifest.json") + EXTRA_ASSETS:
         assets[name] = K.read_asset(HERE / name)
@@ -139,10 +152,14 @@ for name,text in assets.items():
     Path('@@KROOT@@/working',name).write_text(text)
 sys.path.insert(0,'@@KROOT@@/working')
 """) + NP.rehearsal_bootstrap_z(replay_path.read_bytes()) + K.expand("""from dependency_gate import verify_lock
-verified=verify_lock()
+from mount_resolver import resolve_and_write
+mounts=resolve_and_write('@@KROOT@@/working/dependency_lock.json','@@KROOT@@/input','@@KROOT@@/working')
+verified=verify_lock(mounts['resolved_lock_path'])
 Path('@@KROOT@@/working/dependency_validation.json').write_text(json.dumps(verified,indent=2))
 from input_preflight import validate, XID, YID
 mapping={XID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_X_BUNDLE@@',YID:'@@KROOT@@/input/datasets/@@KUSER@@/@@SLUG_Y_BUNDLE@@'}
+mapping={XID:mounts['roots']['X'],YID:mounts['roots']['Y']}
+os.environ['VYRA_CKPT300_PATH']=str(Path(mounts['roots']['C'])/'checkpoint_300.pt')
 validation,roots=validate(mapping)
 Path('@@KROOT@@/working/input_validation.json').write_text(json.dumps(validation,indent=2))
 os.environ['XROOT']=str(roots['X']);os.environ['YROOT']=str(roots['Y'])
@@ -210,6 +227,7 @@ if result['timed_out'] or result['returncode']!=0:raise RuntimeError('Subprocess
         "notebook_bytes": (kernel / "replay.ipynb").stat().st_size,
         "notebook_size_limit_bytes": NP.KAGGLE_SOURCE_LIMIT,
         "packing": {"method": NP.METHOD, "zlib_level": NP.ZLIB_LEVEL},
+        "dataset_mounts": "resolved by file hash under the input root (pinned path first); redacted listing printed to the kernel log",
         "assets": lock["assets"],
         "checkpoint_dataset": datasets["C"],
         "plan_prefix_sha256": PINNED_PREFIX_PLAN_SHA256,
