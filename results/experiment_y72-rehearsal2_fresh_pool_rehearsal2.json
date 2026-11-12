@@ -1,0 +1,200 @@
+{
+ "question": "Resuming the y72fix2 run at update 300 (per-task clip 0.5, replay weight 0.25 unchanged), does replaying rows from a fresh pre-registered 200-row Y72 pool, each row exactly once, keep Y72 held on the 600-segment set while X64 keeps progressing through update 400? (pre-registered as vyra-y72-rehearsal2-fresh-v1)",
+ "design": "One run, one seed, resume from the update-300 checkpoint (sha256 verified before load; the restored model reproduced the recorded integer counts at 300 exactly, tolerance 0), updates 301..400. The only change from the cont400 run is the replay rows: update s+1 uses pool rows 2*(s-300) and 2*(s-300)+1, so all 200 pool rows are used once. Evaluation and full checkpoints at 325/350/375/400; gates at 350/375/400 (the cont400 gates, unchanged). Free Kaggle T4 x2, no retries.",
+ "setup": {
+  "resume_update": 300,
+  "final_update": 400,
+  "replay_weight": 0.25,
+  "task_clip": 0.5,
+  "replay_pool_rows": 200,
+  "segments_y72_600set": 600,
+  "x64_heldout_segments": 240,
+  "x64_heldout_tokens": 1920,
+  "seed": 0,
+  "restoration_at_300": {
+   "model_state_matches": true,
+   "x64_counts_match": true,
+   "eval_counts_match": true,
+   "tolerance": 0
+  },
+  "baseline_at_300": {
+   "y72_600set": 496,
+   "x64_heldout_segments": 44,
+   "x64_heldout_tokens": 1665
+  },
+  "dataset_mounts": "all three datasets were found by file hash at a different mount layout than the pinned one, then re-hashed by the dependency gate (59 files)"
+ },
+ "final": {
+  "by_checkpoint": [
+   {
+    "update": 325,
+    "y72_600set_segments_exact": 569,
+    "y72_600set_tokens_correct": 4769,
+    "x64_heldout_segments_exact": 26,
+    "x64_heldout_tokens_correct": 1623,
+    "x64_train_segments_exact": 129,
+    "x64_train_tokens_correct": 1796,
+    "x32_segments_exact": 217,
+    "x109_segments_exact": 104
+   },
+   {
+    "update": 350,
+    "y72_600set_segments_exact": 573,
+    "y72_600set_tokens_correct": 4773,
+    "x64_heldout_segments_exact": 85,
+    "x64_heldout_tokens_correct": 1699,
+    "x64_train_segments_exact": 186,
+    "x64_train_tokens_correct": 1857,
+    "x32_segments_exact": 240,
+    "x109_segments_exact": 106
+   },
+   {
+    "update": 375,
+    "y72_600set_segments_exact": 592,
+    "y72_600set_tokens_correct": 4792,
+    "x64_heldout_segments_exact": 147,
+    "x64_heldout_tokens_correct": 1767,
+    "x64_train_segments_exact": 201,
+    "x64_train_tokens_correct": 1868,
+    "x32_segments_exact": 243,
+    "x109_segments_exact": 98
+   },
+   {
+    "update": 400,
+    "y72_600set_segments_exact": 595,
+    "y72_600set_tokens_correct": 4794,
+    "x64_heldout_segments_exact": 150,
+    "x64_heldout_tokens_correct": 1798,
+    "x64_train_segments_exact": 216,
+    "x64_train_tokens_correct": 1893,
+    "x32_segments_exact": 273,
+    "x109_segments_exact": 112
+   }
+  ],
+  "gates": {
+   "R_hold": {
+    "rule": "sum over 350/375/400 of Y72 (600-set) >= 1440 and each >= 432",
+    "y600": [
+     573,
+     592,
+     595
+    ],
+    "sum": 1760,
+    "sum_floor": 1440,
+    "sum_pass": true,
+    "each_floor": 432,
+    "each_pass": true,
+    "pass": true
+   },
+   "A_progress": {
+    "rule": "X64 held-out >= 44/240 at each gate checkpoint and tokens at 400 >= 1723/1920 (+3.0 pp from 1665)",
+    "x64_heldout_segments": [
+     85,
+     147,
+     150
+    ],
+    "seg_floor": 44,
+    "seg_pass": true,
+    "tokens_at_400": 1798,
+    "tokens_min": 1723,
+    "gain_tokens_from_1665": 133,
+    "gain_pass": true,
+    "pass": true
+   },
+   "N_nonregression": {
+    "rule": "X32 >= 128/320 and X109 >= 90/120 at each gate checkpoint",
+    "x32": [
+     240,
+     243,
+     273
+    ],
+    "x109": [
+     106,
+     98,
+     112
+    ],
+    "x32_min": 128,
+    "x109_min": 90,
+    "pass": true
+   }
+  },
+  "verdict_registered": "SUCCESS",
+  "per_task_clip_telemetry": {
+   "updates_logged": 100,
+   "x_gradient_clipped_updates": 98,
+   "replay_gradient_clipped_updates": 44,
+   "mean_alpha_x": 0.251,
+   "mean_norm_x_gradient": 2.654,
+   "mean_norm_replay_gradient": 2.939,
+   "mean_cos_x_vs_replay": -0.0383,
+   "mean_unclipped_combined_norm": 2.873
+  },
+  "manipulation_checks_nongating": {
+   "windows": [
+    {
+     "window": [
+      301,
+      325
+     ],
+     "updates": 25,
+     "median_replay_pull": 0.499997372886,
+     "median_replay_loss": 0.027,
+     "M1": true,
+     "M2": true
+    },
+    {
+     "window": [
+      326,
+      350
+     ],
+     "updates": 25,
+     "median_replay_pull": 0.40369375,
+     "median_replay_loss": 0.0207,
+     "M1": true,
+     "M2": true
+    },
+    {
+     "window": [
+      351,
+      375
+     ],
+     "updates": 25,
+     "median_replay_pull": 0.2395735,
+     "median_replay_loss": 0.0119,
+     "M1": true,
+     "M2": true
+    },
+    {
+     "window": [
+      376,
+      400
+     ],
+     "updates": 25,
+     "median_replay_pull": 0.0735425,
+     "median_replay_loss": 0.0036,
+     "M1": false,
+     "M2": false
+    }
+   ],
+   "M1_no_starved_window": false,
+   "M2_not_memorized": false,
+   "M3_presentation_once": true,
+   "agree_with_notebook": true
+  },
+  "observation_non_gating": "Y72 (600-set) rose monotonically 569/573/592/595 and X64 held-out exact rose 26/85/147/150 at 325/350/375/400. The non-gating manipulation checks M1 and M2 fail only in the last window 376-400 (median replay pull 0.0735 < 0.10, median replay loss 0.0036 < 0.005): by then the fresh rows were largely fitted, which the prereg anticipated as a possible M2 failure. M3 (each pool row once) holds."
+ },
+ "verdict": "SUCCESS on the pre-registered gates. R passes (Y72 573/592/595, sum 1760 >= 1440, each >= 432), A passes (X64 held-out exact 85/147/150 >= 44, tokens at 400 1798 >= 1723, +6.9 pp), N passes. One run, one seed.",
+ "limitations": [
+  "one seed, one run, no retry",
+  "the non-gating M1/M2 checks fail in the final window, so the replay signal was weak over 376-400",
+  "the earlier cont400 run showed large checkpoint-to-checkpoint swings; this run's monotone trajectory is one sample"
+ ],
+ "cost": {
+  "gpu_hours_kaggle_quota_displayed": "about 0.16 (22.79 h -> 22.95 h of 30 h, two rounded displays)",
+  "usd": 0,
+  "trainer_s": 80.8,
+  "arm_wall_s": 170.1,
+  "notebook_subprocess_wall_s": 203.5
+ },
+ "_curation_warning": "GENERIC SCRUBBER ONLY. No per-experiment adapter exists for this experiment. This record was produced by dropping known-unsafe keys; it has NOT been reviewed for content that is private without being identifiable by key name. Review every field before publishing."
+}

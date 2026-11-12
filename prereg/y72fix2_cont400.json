@@ -1,0 +1,137 @@
+{
+ "rule_id": "vyra-y72fix2-cont400-v1",
+ "status": "PRE-REGISTERED by FORGE (Grok Bot) before any update 301..400 of this run exists anywhere and before any package build or scoring. Approved scope: pre-register, build the run package, pass CPU preflight. NOT approved to run on GPU, upload, or create a Kaggle dataset (each needs a separate explicit approval).",
+ "registered_by": "FORGE (Grok Bot), CPU-only step of Nov 12 2026 (AJ's go via VERA card t608s2520, 12:03 AM UTC-7)",
+ "question": "Continuing the successful y72fix2 run from update 300 to 400 with the SAME per-task clip 0.5 and replay weight 0.25: does Y72 HOLD on the pre-registered 600-segment set while X64 CONTINUES TO PROGRESS?",
+ "parent": {
+  "prereg": "prereg/y72fix2.json (sha256 8eaace70888b8ec6c02537354a6ec98118327505f1a482deea01221f8475a89a), verdict SUCCESS",
+  "package_commit": "5e34ba8", "results_commit": "47e530a", "docs_commit": "a7b7a87",
+  "run": "one Kaggle T4 x2 run (version 1) of the y72fix2 kernel; kernel and dataset slugs are private (local kaggle_config.json)",
+  "observed_at_300": {"Y72v2_600_segments_exact": 496, "X64_heldout_segments_exact": 44, "X64_heldout_tokens_correct": 1665, "X32_unseen_segments_exact": 229, "X109_unseen_segments_exact": 109},
+  "observed_y600_250_275_300": [528, 524, 496], "observed_sum3": 1548
+ },
+ "design": {
+  "only_change_vs_parent": "none in the training rule: the run continues the parent's exact configuration for 100 more updates; the only differences are the resume point (300), the plan extension 301..400, the evaluation/checkpoint updates and the gates below",
+  "task_clip": 0.5,
+  "replay_lambda": 0.25,
+  "replay_rows_per_update": 2,
+  "resume_from": {
+   "update": 300,
+   "file": "checkpoint_300.pt",
+   "sha256": "5df9a3f8bcf04dbeac6b15d96a312e3fa3b425aef60639a603ece3c19fea45a3",
+   "bytes": 197237651,
+   "model_state_sha256": "8fecaa8b159d2979b93322b896b9709824ea354a2002c5eafae104cbcaeceb9d",
+   "origin": "written by the parent y72fix2 run at update 300 (its result.json records the same sha256 and size), downloaded outputs; complete v2 state incl. optimizer, RNG (two CUDA devices), router, sampler",
+   "saved_sampler": {"next_update_index": 300, "plan_length": 300, "plan_prefix200_sha256": "c3ac1155e0e21b25133d7e76aa63589a98e53d3e80ee3b0c645daa3fcd365ae7", "plan_full_sha256": "2c59794e261a88216e5d77141b3373073c6e518545dce8a2578f279e95de86aa", "plan_extension_policy": "vyra-x-plan-extension-v1"},
+   "saved_optimizer_config": {"class": "SliceAdam", "B1": 0.9, "B2": 0.999, "EPS": 1e-08, "LR": 0.0003, "grad_clip_max_norm": 1.0, "replay_lambda": 0.25, "replay_batch": 2, "seed": 0},
+   "note": "grad_clip_max_norm 1.0 is the legacy global value stored by the parent; the parent and this run use per-task clip 0.5 (unchanged)"
+  },
+  "exact_restoration_check": {
+   "rule": "after the full v2 restore: model-state sha256 must equal model_state_sha256 (always fatal); the integer eval counts of the restored model at update 300 must equal the counts the parent run recorded at 300 exactly (tolerance 0; fatal on GPU, recorded-not-fatal in the CPU smoke because CPU and GPU arithmetic differ)",
+   "counts_300": {
+    "Y72_unseen": {"tokens_correct": 1558, "tokens": 1600, "segments_exact": 159, "segments": 200},
+    "X32_unseen": {"tokens_correct": 2446, "tokens": 2560, "segments_exact": 229, "segments": 320},
+    "X64_unseen": {"tokens_correct": 1665, "tokens": 1920, "segments_exact": 44, "segments": 240},
+    "X109_unseen": {"tokens_correct": 948, "tokens": 960, "segments_exact": 109, "segments": 120},
+    "Y72v2_600": {"tokens_correct": 4694, "tokens": 4800, "segments_exact": 496, "segments": 600}
+   },
+   "x64_300": {
+    "train": {"tokens_correct": 1816, "tokens": 1920, "segments_exact": 139, "segments": 240},
+    "heldout": {"tokens_correct": 1665, "tokens": 1920, "segments_exact": 44, "segments": 240}
+   }
+  },
+  "plan_extension": {
+   "policy": "vyra-x-plan-extension-v1, continued: entries 300..399 are entries 100..199 of the SAME v1 streams (build_extension(n_gen, n32, count=200)[100:]), so plan[0:300] is byte-identical to the pinned 300-entry plan; no new labels, no global RNG",
+   "inputs": {"n_gen": 306, "n32": 117},
+   "plan400_extension_300_399_sha256": "1cfdd4555fe624363454b886fedafdbd08b04a7c8b67976281f9e70936cb2499",
+   "plan400_full_sha256": "d9f132342c569d400a737bc7739ff9b87b427858984006437db3fda7f654d943",
+   "plan400_prefix300_sha256": "2c59794e261a88216e5d77141b3373073c6e518545dce8a2578f279e95de86aa",
+   "needle_presentations_301_400": "every one of the 40 needle rows 2 or 3 times (20 rows each)"
+  },
+  "updates": "301..400 (100 updates), evals and complete v2 checkpoints at 325, 350, 375, 400; always stops at 400, one report, no retry",
+  "gate_checkpoints": [350, 375, 400],
+  "observation_only_checkpoint": 325,
+  "unchanged": [
+   "per-task clip 0.5 on gx and on 0.25*gy, summed; replay weight 0.25; 2 replay rows per update with idx=(s*2+j)%40",
+   "SliceAdam, LR 3e-4, expert-selection union",
+   "data, held-out sets (incl. the 600-segment set, canonical sha256 16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b, verified), evaluation code, seed handling (no reseed; RNG from the checkpoint)",
+   "no penalty term, no frozen parameter, no projection, no new data"
+  ],
+  "limits": {"trainer_s": 600, "notebook_s": 900, "parent_timing": "75 updates + 3 checkpoint dumps took 119 s arm wall time on T4 x2; 100 updates + 4 dumps is expected to take about 160 s"}
+ },
+ "arithmetic": {
+  "rule": "integer cross-multiplication only; no float, no rounding",
+  "operators": ">= for every floor and the gain threshold",
+  "module": "tools/experiment_packaging/y72fix2_cont400_gates.py (written after this record; a test pins it to this file)"
+ },
+ "gates": {
+  "R_hold": {
+   "text": "Y72 HOLDS: sum over checkpoints 350, 375, 400 of Y72 segment-exact on the 600-segment set >= 1440 of 1800 AND every one of those checkpoints >= 432 of 600",
+   "sum3": 1440,
+   "each_checkpoint": 432,
+   "rule_reused": "vyra-y72-heldout-v2-gate-v1 (same percentages: mean >= 80.0%, each >= 72.0%), moved to the last three checkpoints of this run; no rescaling is needed because it is again a sum over three checkpoints of 600 segments",
+   "boundary": {"sum3": {"1440": true, "1439": false}, "each": {"432": true, "431": false}}
+  },
+  "A_progress": {
+   "text": "X64 CONTINUES TO PROGRESS: X64 held-out segment-exact >= 44 of 240 (its value at the resume point 300) at EVERY gate checkpoint (350, 375, 400) AND X64 held-out token gain 300 -> 400 >= 3.0 pp (tokens_correct(400) >= 1723 of 1920, from 1665)",
+   "x64_seg_each": 44,
+   "tokens_at_400_min": 1723,
+   "gain_tenths_pp": 30,
+   "resume_x64_heldout": {"tokens_correct": 1665, "tokens": 1920, "segments_exact": 44, "segments": 240},
+   "boundary": {"seg": {"44": true, "43": false}, "tokens_at_400": {"1723": true, "1722": false}},
+   "consistency_with_parent": "same structure as the parent's A gate: held-out exact never below the resume-point value (parent: 11 = value at 225) plus a token-gain threshold from the resume point; the threshold is smaller (3.0 pp vs 7.0 pp) because only 13.3 pp of headroom remain (1665/1920 = 86.7%) and the remaining errors are the harder ones",
+   "nongating_report": "held-out exact gain at 400 >= 12 segments (about 2 single-measurement SDs) is reported, not gating"
+  },
+  "N_nonregression": {
+   "text": "X32 held-out >= 128/320 and X109 >= 90/120 at EVERY gate checkpoint (350, 375, 400)",
+   "x32_min": 128,
+   "x109_min": 90,
+   "rule_reused": "parent N gate, unchanged",
+   "boundary": {"X32": {"128": true, "127": false}, "X109": {"90": true, "89": false}}
+  }
+ },
+ "verdict_table": {
+  "SUCCESS": "R and A and N",
+  "FAIL_HOLD": "not R, A, N",
+  "FAIL_PROGRESS": "R, not A, N",
+  "FAIL_NONREGRESSION": "R, A, not N",
+  "other_combinations": "FAIL_<failed gates joined by _> (HOLD, PROGRESS, NONREGRESSION)",
+  "NOT_EVALUATED_BEFORE_400": "history lacks any of 350, 375, 400"
+ },
+ "noise_math": {
+  "y72_600_set": {
+   "single_checkpoint_sd_segments": "about 9.5 (measured 9.3-9.7 on the 600-set, prereg/y72fix2.json expected_effect_vs_noise.measured_noise; binomial at p 0.8: 9.8)",
+   "mean_of_3_se_segments": "8.3-9.0 measured (cluster SE). This is much larger than 9.5/sqrt(3) = 5.5 because checkpoints share a noise component; the registered independent-checkpoint prediction 5.3-6.8 was wrong and the measured value is used",
+   "sum3_se_segments": "3 x (8.3-9.0) = 25-27",
+   "gate_margin_reading": "the sum3 floor 1440 equals a true per-checkpoint mean of 480; P(pass R_sum | true mean m) is about 0.12 at 470, 0.29 at 475, 0.51 at 480, 0.72 at 485, 0.88 at 490, 0.97 at 496 (the 300 value), 0.99 at 500 (normal approx, SE 25-27). The guard 432 is 5 single SDs below 480 and only catches a collapse at one checkpoint (P(one checkpoint < 432 | true 450) about 0.03)",
+   "what_hold_means": "measurement noise is not the limiting factor: the parent's Y72 fell 528 -> 524 -> 496 over 50 updates (-32), i.e. about 3 single SDs; if that slope continued (-16 per 25 updates) the sum over 350/375/400 would be about 1344 and the gate fails. The gate therefore tests whether Y72 levels off at or above 480 rather than continuing to slide",
+   "nongating_paired_report": "mean(350,375,400) minus 496 (the 300 value), with SE about sqrt(9.5^2 + 8.7^2) = 12.9 segments"
+  },
+  "x64_heldout": {
+   "items": "40 held-out rows x 6 segments = 240 segments, 1920 tokens",
+   "single_measurement_sd": "tokens about 15 (binomial 14.9 at 86.7%; row-cluster SD from the parent's x64_predictions_250/275/300: 13.8 / 17.4 / 12.3) = 0.8 pp; segment-exact about 5-6 (binomial 6.0 at 44/240; row-cluster 3.3 / 5.5 / 5.3)",
+   "gain_sd": "difference of two measurements: tokens about sqrt(2) x 15 = 21 (1.1 pp)",
+   "gain_gate_reading": "the 3.0 pp threshold (58 tokens) is 2.7 difference-SDs: P(pass | no true progress) about 0.003; P(pass | true gain 40 tokens = 2.1 pp) about 0.20; 58 tokens: 0.51; 80 tokens (4.2 pp): 0.86; 120 tokens (6.25 pp): 0.999. The parent gained 247 tokens (12.9 pp) in 75 updates; half that rate over 100 updates is 165 tokens",
+   "seg_each_reading": "P(segment-exact >= 44 at one checkpoint | true 50) about 0.86, | true 55 about 0.97 (SD 6); a plateau exactly at 44 passes each checkpoint only about half the time, so the every-checkpoint floor also requires progress"
+  },
+  "x32_x109": "floors 128/320 and 90/120 sit 101 and 19 segments below the observed 229 and 109 at 300; they only catch a regression"
+ },
+ "pass_probability": {
+  "point": 0.4,
+  "plausible_range": [0.25, 0.6],
+  "basis": "judgment, not computed: R about 0.5 (Y72 was trending down at 300 and no CPU probe of 301..400 exists; the per-task CPU arms of the parent's design were flat (528/519/528) in one trajectory and falling (528/517/494) in the other), A about 0.8 (tokens rose 101 in the last 25 parent updates), N about 0.95; positively correlated",
+  "plain_statement": "This run asks a real question rather than confirming a likely pass. A FAIL_HOLD would mean the per-task clip slows but does not stop Y72 forgetting over longer training."
+ },
+ "not_gating": [
+  "checkpoint 325 (eval + full checkpoint, reported only)",
+  "Y72 200-set counts",
+  "X64 train-row counts (the train readout set is the rows first presented by update 300, as in the parent)",
+  "per-update pre-clip norms and the per-task clip record",
+  "paired difference vs 300 and the 12-segment held-out exact gain"
+ ],
+ "run_package": {
+  "approved_now": "build the run package and pass CPU preflight with hash checks (incl. exact restore from checkpoint_300); nothing is uploaded, no dataset is created, nothing runs on GPU",
+  "needs_separate_approval": "creating a private Kaggle dataset that holds only checkpoint_300.pt (sha above), and one GPU run",
+  "identifiers": "kernel and dataset slugs, the Kaggle username and Kaggle paths are only in the local gitignored kaggle_config.json"
+ }
+}

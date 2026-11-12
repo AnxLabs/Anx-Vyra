@@ -1,0 +1,20 @@
+300 127 s CE {'REP40': 0.0089, 'F200': 0.1292, 'Y200': 0.1473}
+   REP40 {'n': 25, 'mean_loss': 0.008652, 'mean_norm': 0.963218, 'mean_contrib': 0.141404, 'clip_bind_frac': 0.16, 'mean_dL_Y200': -0.048872, 'mean_dL_X64ho': 0.0326, 'mean_cosP_Y200': 0.066845, 'mean_cosP_X64ho': -0.046678, 'frac_dL_Y200_negative': 1.0}
+   F200 {'n': 25, 'mean_loss': 0.131516, 'mean_norm': 8.40683, 'mean_contrib': 0.453276, 'clip_bind_frac': 0.88, 'mean_dL_Y200': -0.296051, 'mean_dL_X64ho': 0.289647, 'mean_cosP_Y200': 0.108782, 'mean_cosP_X64ho': -0.088393, 'frac_dL_Y200_negative': 1.0}
+   REPtop {'n': 1, 'mean_loss': 0.095812, 'mean_norm': 4.080963, 'mean_contrib': 0.5, 'clip_bind_frac': 1.0, 'mean_dL_Y200': -0.238989, 'mean_dL_X64ho': 0.207789, 'mean_cosP_Y200': 0.057219, 'mean_cosP_X64ho': -0.041427, 'frac_dL_Y200_negative': 1.0}
+325 104 s CE {'REP40': 0.0073, 'F200': 0.1283, 'Y200': 0.1455}
+   REP40 {'n': 25, 'mean_loss': 0.009834, 'mean_norm': 1.261186, 'mean_contrib': 0.138832, 'clip_bind_frac': 0.2, 'mean_dL_Y200': -0.065935, 'mean_dL_X64ho': 0.091824, 'mean_cosP_Y200': 0.071963, 'mean_cosP_X64ho': -0.062151, 'frac_dL_Y200_negative': 1.0}
+   F200 {'n': 25, 'mean_loss': 0.138207, 'mean_norm': 7.255909, 'mean_contrib': 0.439017, 'clip_bind_frac': 0.8, 'mean_dL_Y200': -0.248144, 'mean_dL_X64ho': 0.351803, 'mean_cosP_Y200': 0.124606, 'mean_cosP_X64ho': -0.112787, 'frac_dL_Y200_negative': 1.0}
+   REPtop {'n': 1, 'mean_loss': 0.082993, 'mean_norm': 9.834408, 'mean_contrib': 0.5, 'clip_bind_frac': 1.0, 'mean_dL_Y200': -0.312883, 'mean_dL_X64ho': 0.441414, 'mean_cosP_Y200': 0.111547, 'mean_cosP_X64ho': -0.09897, 'frac_dL_Y200_negative': 1.0}
+350 250 s CE {'REP40': 0.0057, 'F200': 0.0994, 'Y200': 0.1042}
+   REP40 {'n': 25, 'mean_loss': 0.006169, 'mean_norm': 0.869856, 'mean_contrib': 0.196629, 'clip_bind_frac': 0.16, 'mean_dL_Y200': -0.034565, 'mean_dL_X64ho': 0.054172, 'mean_cosP_Y200': 0.051704, 'mean_cosP_X64ho': -0.031477, 'frac_dL_Y200_negative': 1.0}
+   F200 {'n': 25, 'mean_loss': 0.098246, 'mean_norm': 5.961309, 'mean_contrib': 0.437537, 'clip_bind_frac': 0.76, 'mean_dL_Y200': -0.152847, 'mean_dL_X64ho': 0.38197, 'mean_cosP_Y200': 0.094393, 'mean_cosP_X64ho': -0.078499, 'frac_dL_Y200_negative': 1.0}
+   REPtop {'n': 1, 'mean_loss': 0.034953, 'mean_norm': 3.050157, 'mean_contrib': 0.5, 'clip_bind_frac': 1.0, 'mean_dL_Y200': -0.058071, 'mean_dL_X64ho': 0.008093, 'mean_cosP_Y200': 0.006185, 'mean_cosP_X64ho': -0.000288, 'frac_dL_Y200_negative': 1.0}
+375 115 s CE {'REP40': 0.0237, 'F200': 0.2682, 'Y200': 0.3149}
+   REP40 {'n': 25, 'mean_loss': 0.031771, 'mean_norm': 5.926432, 'mean_contrib': 0.312918, 'clip_bind_frac': 0.52, 'mean_dL_Y200': -0.291794, 'mean_dL_X64ho': 0.270747, 'mean_cosP_Y200': 0.136782, 'mean_cosP_X64ho': -0.121247, 'frac_dL_Y200_negative': 1.0}
+   F200 {'n': 25, 'mean_loss': 0.272473, 'mean_norm': 13.292918, 'mean_contrib': 0.5, 'clip_bind_frac': 1.0, 'mean_dL_Y200': -0.540848, 'mean_dL_X64ho': 0.476739, 'mean_cosP_Y200': 0.139712, 'mean_cosP_X64ho': -0.118292, 'frac_dL_Y200_negative': 1.0}
+   REPtop {'n': 1, 'mean_loss': 0.184188, 'mean_norm': 31.881304, 'mean_contrib': 0.5, 'clip_bind_frac': 1.0, 'mean_dL_Y200': -0.485184, 'mean_dL_X64ho': 0.548837, 'mean_cosP_Y200': 0.198415, 'mean_cosP_X64ho': -0.214219, 'frac_dL_Y200_negative': 1.0}
+400 105 s CE {'REP40': 0.0025, 'F200': 0.028, 'Y200': 0.0359}
+   REP40 {'n': 25, 'mean_loss': 0.002568, 'mean_norm': 0.190196, 'mean_contrib': 0.047549, 'clip_bind_frac': 0.0, 'mean_dL_Y200': -0.000867, 'mean_dL_X64ho': 0.003883, 'mean_cosP_Y200': 0.018446, 'mean_cosP_X64ho': -0.009846, 'frac_dL_Y200_negative': 0.92}
+   F200 {'n': 25, 'mean_loss': 0.023145, 'mean_norm': 1.67139, 'mean_contrib': 0.256331, 'clip_bind_frac': 0.32, 'mean_dL_Y200': -0.01081, 'mean_dL_X64ho': 0.127662, 'mean_cosP_Y200': 0.029758, 'mean_cosP_X64ho': -0.021004, 'frac_dL_Y200_negative': 1.0}
+   REPtop {'n': 1, 'mean_loss': 0.011933, 'mean_norm': 1.427839, 'mean_contrib': 0.35696, 'clip_bind_frac': 0.0, 'mean_dL_Y200': -0.001342, 'mean_dL_X64ho': 0.014335, 'mean_cosP_Y200': 0.002077, 'mean_cosP_X64ho': -0.001317, 'frac_dL_Y200_negative': 1.0}

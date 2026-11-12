@@ -377,7 +377,7 @@ def curate_x(raw: dict, profile: dict) -> dict:
 def curate_y(raw: dict, profile: dict) -> dict:
     """Experiment Y: jittered-distance targeted fix. Hand-curated allowlist.
 
-    Nothing is copied wholesale: the raw record carries absolute /kaggle paths, dataset slugs and
+    Nothing is copied wholesale: the raw record carries absolute Kaggle filesystem paths, dataset slugs and
     other machine-specific values that must not be published. Every field below is named explicitly.
     """
     arm = raw["arms"]["jitter_3e4"]

@@ -1,0 +1,230 @@
+{
+ "question": "Does clipping each task's gradient separately (per-task clip 0.5 on the X gradient and on 0.25 x the replay gradient) instead of one global clip of 1.0 hold Y72 on the pre-registered 600-segment held-out set while X64 acquisition continues? (pre-registered as vyra-y72fix2-pertask-v2)",
+ "design": "One run, one seed, resume from the update-225 checkpoint of the 200-to-300 run (sha256 verified; restoration reproduced the recorded integer counts with zero tolerance), updates 226..300, replay weight 0.25 unchanged, only the gradient combination changed (the two task gradients are clipped to norm 0.5 each and summed). Evaluation at 250/275/300 on the 600-segment Y72 set, X64 held-out, X32 and X109. Free Kaggle T4 x2, no retries.",
+ "setup": {
+  "resume_update": 225,
+  "final_update": 300,
+  "replay_weight": 0.25,
+  "task_clip": 0.5,
+  "global_clip_removed": true,
+  "segments_y72_600set": 600,
+  "x64_heldout_segments": 240,
+  "x64_heldout_tokens": 1920,
+  "seed": 0,
+  "baseline_at_225_recomputed_on_gpu": {
+   "y72_600set": 490,
+   "x64_heldout_segments": 11,
+   "x64_heldout_tokens": 1418
+  }
+ },
+ "final": {
+  "by_checkpoint": [
+   {
+    "update": 250,
+    "y72_600set_segments_exact": 528,
+    "y72_200set_segments_exact": 175,
+    "x64_heldout_segments_exact": 13,
+    "x64_heldout_tokens_correct": 1526,
+    "x64_train_segments_exact": 47,
+    "x64_train_tokens_correct": 1660,
+    "x32_segments_exact": 202,
+    "x109_segments_exact": 101
+   },
+   {
+    "update": 275,
+    "y72_600set_segments_exact": 524,
+    "y72_200set_segments_exact": 173,
+    "x64_heldout_segments_exact": 28,
+    "x64_heldout_tokens_correct": 1564,
+    "x64_train_segments_exact": 75,
+    "x64_train_tokens_correct": 1730,
+    "x32_segments_exact": 249,
+    "x109_segments_exact": 109
+   },
+   {
+    "update": 300,
+    "y72_600set_segments_exact": 496,
+    "y72_200set_segments_exact": 159,
+    "x64_heldout_segments_exact": 44,
+    "x64_heldout_tokens_correct": 1665,
+    "x64_train_segments_exact": 139,
+    "x64_train_tokens_correct": 1816,
+    "x32_segments_exact": 229,
+    "x109_segments_exact": 109
+   }
+  ],
+  "gates": {
+   "R_retention": {
+    "rule": "sum over 250/275/300 of Y72 (600-set) >= 1440 and each >= 432",
+    "counts": [
+     528,
+     524,
+     496
+    ],
+    "sum": 1548,
+    "pass": true
+   },
+   "A_acquisition": {
+    "rule": "X64 held-out >= 11/240 at every checkpoint and token gain 225->300 >= 7.0 pp (tokens at 300 >= 1553 of 1920)",
+    "x64_heldout_segments": [
+     13,
+     28,
+     44
+    ],
+    "tokens_at_300": 1665,
+    "gain_tokens": 247,
+    "pass": true,
+    "nongating_10pp_rule_of_the_replay_0.5_run_met": true
+   },
+   "N_nonregression": {
+    "rule": "X32 >= 128/320 and X109 >= 90/120 at every checkpoint",
+    "x32": [
+     202,
+     249,
+     229
+    ],
+    "x109": [
+     101,
+     109,
+     109
+    ],
+    "pass": true
+   }
+  },
+  "verdict_registered": "SUCCESS",
+  "comparison_non_gating": {
+   "replay_0.25_global_clip_gpu_run": [
+    {
+     "update": 250,
+     "y72_600set_segments_exact": 363,
+     "y72_200set_segments_exact": 137,
+     "x64_heldout_segments_exact": 29,
+     "x64_heldout_tokens_correct": 1542,
+     "x64_train_segments_exact": 80,
+     "x64_train_tokens_correct": 1701,
+     "x32_segments_exact": 206,
+     "x109_segments_exact": 99
+    },
+    {
+     "update": 275,
+     "y72_600set_segments_exact": 390,
+     "y72_200set_segments_exact": 137,
+     "x64_heldout_segments_exact": 46,
+     "x64_heldout_tokens_correct": 1603,
+     "x64_train_segments_exact": 126,
+     "x64_train_tokens_correct": 1785,
+     "x32_segments_exact": 235,
+     "x109_segments_exact": 106
+    },
+    {
+     "update": 300,
+     "y72_600set_segments_exact": 454,
+     "y72_200set_segments_exact": 153,
+     "x64_heldout_segments_exact": 92,
+     "x64_heldout_tokens_correct": 1687,
+     "x64_train_segments_exact": 182,
+     "x64_train_tokens_correct": 1854,
+     "x32_segments_exact": 264,
+     "x109_segments_exact": 109
+    }
+   ],
+   "replay_0.5_global_clip_gpu_run": [
+    {
+     "update": 250,
+     "y72_600set_segments_exact": 450,
+     "y72_200set_segments_exact": 152,
+     "x64_heldout_segments_exact": 17,
+     "x64_heldout_tokens_correct": 1532,
+     "x64_train_segments_exact": 63,
+     "x64_train_tokens_correct": 1700,
+     "x32_segments_exact": 211,
+     "x109_segments_exact": 100
+    },
+    {
+     "update": 275,
+     "y72_600set_segments_exact": 421,
+     "y72_200set_segments_exact": 147,
+     "x64_heldout_segments_exact": 29,
+     "x64_heldout_tokens_correct": 1571,
+     "x64_train_segments_exact": 83,
+     "x64_train_tokens_correct": 1731,
+     "x32_segments_exact": 239,
+     "x109_segments_exact": 99
+    },
+    {
+     "update": 300,
+     "y72_600set_segments_exact": 420,
+     "y72_200set_segments_exact": 152,
+     "x64_heldout_segments_exact": 42,
+     "x64_heldout_tokens_correct": 1618,
+     "x64_train_segments_exact": 128,
+     "x64_train_tokens_correct": 1794,
+     "x32_segments_exact": 273,
+     "x109_segments_exact": 114
+    }
+   ],
+   "y72_600set_sum": {
+    "per_task_clip": 1548,
+    "replay_0.25_global_clip": 1207,
+    "replay_0.5_global_clip": 1291
+   },
+   "x64_heldout_segments_at_300": {
+    "per_task_clip": 44,
+    "replay_0.25_global_clip": 92,
+    "replay_0.5_global_clip": 42
+   }
+  },
+  "per_task_clip_telemetry": {
+   "updates_logged": 75,
+   "x_gradient_clipped_updates": 75,
+   "replay_gradient_clipped_updates": 30,
+   "mean_alpha_x": 0.1753,
+   "min_alpha_x": 0.0345,
+   "max_alpha_x": 0.3877,
+   "mean_norm_x_gradient": 3.281,
+   "mean_norm_replay_gradient": 3.049,
+   "mean_cos_x_vs_replay": -0.0683,
+   "frac_updates_cos_negative": 0.64,
+   "mean_applied_update_norm": 0.5816,
+   "mean_unclipped_combined_norm": 3.451
+  },
+  "prediction_vs_outcome": {
+   "registered_pass_probability": 0.6,
+   "cpu_probe_y600": [
+    [
+     528,
+     519,
+     528
+    ],
+    [
+     528,
+     517,
+     494
+    ]
+   ],
+   "gpu_run_y600": [
+    528,
+    524,
+    496
+   ],
+   "note": "the CPU probe trajectories (528/519/528 and 528/517/494) equal the GPU run at 250 (528), are within 7 segments at 275 and within 2 to 32 at 300"
+  },
+  "legacy_200_set_note": "Y72 on the old 200-segment set was 175/173/159 (159 is one below the old 160 floor); the old rule is superseded by the registered 600-set gate and is not gating here"
+ },
+ "verdict": "SUCCESS on the pre-registered gates (R, A and N all pass); one run, one seed. Y72 on the 600-set was 528/524/496 (sum 1548 against 1440) and fell by 28 segments between 275 and 300; X64 acquisition is much slower than with the global clip (44 vs 92 held-out exact at 300).",
+ "limitations": [
+  "one seed, one run, no retry; the pass margin on the sum is 108 segments of 1800, while single-checkpoint measurement SD is 9-10 and trajectory-to-trajectory spread was tens of segments in the CPU probes",
+  "retention was still falling at 300 (528, 524, 496); whether it would continue to fall beyond 300 is not tested",
+  "this is a trade-off: X64 held-out exact 44/240 at 300 against 92/240 for the global clip, so X64 is learned about half as fast; the registered floors were met",
+  "X64 acquisition passed the registered 7.0 pp bar (12.9 pp) and also the stricter 10.0 pp bar of the replay-weight run",
+  "the arm was selected from about nine CPU probe arms; the GPU run is the first and only confirmation"
+ ],
+ "cost": {
+  "gpu_hours_kaggle_quota_displayed": "about 0.05 (7.42 h -> 7.47 h of 30 h, two rounded displays)",
+  "usd": 0,
+  "trainer_s": 56.3,
+  "arm_wall_s": 119.4,
+  "notebook_cell_wall_s": 157.6
+ },
+ "_curation_warning": "GENERIC SCRUBBER ONLY. No per-experiment adapter exists for this experiment. This record was produced by dropping known-unsafe keys; it has NOT been reviewed for content that is private without being identifiable by key name. Review every field before publishing."
+}

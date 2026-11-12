@@ -248,7 +248,7 @@ neighbouring distances, and it has not been shown to generalise to a *continuous
 rather than a trained set of them. The jittered-filler fix proposed for that was run as
 Experiment Y, and it did not work (finding 5).
 
-### 5. Y — (generated draft)
+### 5. Jittering the distance did not smooth it (Experiment Y)
 
 **Jittering the distance did not smooth it.** Experiment Y took X's ending weights and trained
 with filler length jittered by ±8 around each of the three anchors, turning three trained distances
@@ -279,6 +279,111 @@ The chart plots per-geometry unseen token accuracy before and after. The anchors
 0 are the points that fall; the band geometries that never reached record level sit near the axis in
 both series.
 
+### 6. Resuming from update 200 kept teaching X64, and broke Y72 retention (INCONCLUSIVE)
+
+The 64-token needle task (X64) had been stuck at zero record-exact on held-out rows at update 200.
+The next question was whether it was stuck or only slow, so the run was resumed from the update-200
+checkpoint with the same recipe (replay weight 0.25, one global clip at 1.0) for 100 more updates,
+under a stop rule written down in advance (`prereg/stop_rule_300.json`). One run, one seed.
+
+X64 was slow, not stuck. Held-out record-exact (rows disjoint from every training row) went
+0 → 11 → 29 → 46 → 92 of 240 at updates 200 / 225 / 250 / 275 / 300, and held-out token accuracy went
+257 → 1418 → 1542 → 1603 → 1687 of 1920 (13.4% → 87.9%). X32 and X109 ended above where they started
+(264/320 and 109/120 at update 300).
+
+Retention of Y72, the 72-token needle distance, failed. Y72 record-exact on its 200 held-out segments
+was 165 at update 200 and 168 at 225, then **137, 137 and 153 at 250, 275 and 300**, against a floor of
+160. The pre-registered rule therefore returns **INCONCLUSIVE**: not stuck, but retention failed at
+every checkpoint from 250 on, and no success may be claimed. Curated record:
+[`results/experiment_r300_continuation.json`](results/experiment_r300_continuation.json).
+
+### 7. Doubling the replay weight did not fix Y72, and cost X64 (FAIL_RETENTION)
+
+The obvious single-variable fix for finding 6 was to raise the replay weight on the Y72 rehearsal rows
+from 0.25 to 0.5. It was run once, resumed from the update-225 checkpoint of the 200→300 run and
+stopped at 300, against gates written beforehand (`prereg/y72fix_lambda05.json`): Y72 ≥ 160/200 at
+250, 275 and 300 (retention), X64 held-out ≥ 11/240 at every checkpoint plus a ≥ 10.0 point token gain
+(acquisition), X32 ≥ 128/320 and X109 ≥ 90/120 (non-regression).
+
+Result: **FAIL_RETENTION**. Y72 was 152, 147 and 152 of 200 at 250, 275 and 300, short of 160 by 8, 13
+and 8. The 0.25 control was 137, 137 and 153. So the larger weight narrowed the drop at 250 and 275,
+and was level with the control at 300. It paid for that in X64: held-out record-exact 17, 29 and 42
+of 240 against the control's 29, 46 and 92 (token accuracy 1618 vs 1687 of 1920 at 300). Acquisition
+and non-regression passed their gates. One seed; a metric that flips 49 to 61 of its 200 items per
+25 updates (finding 8) can move by more than the 8 to 13 item shortfall by chance, so this shows that
+0.5 did not meet the bar, not that the weight has no effect on retention. Curated record:
+[`results/experiment_y72fix_lambda05.json`](results/experiment_y72fix_lambda05.json).
+
+### 8. The Y72 gate was noisier than the effects it was asked to detect (measurement study)
+
+Before spending another run, the noise in the Y72 metric was measured on the eight existing
+checkpoints, CPU only, no training. Two checkpoints 25 updates apart disagree on 49 to 61 of the 200
+held-out segments (27% on average); a single real optimizer step already flips 13.3 ± 4.0. The
+single-checkpoint standard deviation is 5.2 to 5.7 segments (2.6 to 2.8 points), with no detectable
+row clustering (row ICC −0.015), which makes the smallest effect one checkpoint can resolve
+about 14 segments (7.0 points). The mean of the three late checkpoints has a cluster-bootstrap SE
+of 3.7 (λ0.25) and 3.9 (λ0.5) segments. The old rule "every checkpoint ≥ 160" therefore has a large
+chance of failing a model that sits at the floor.
+
+Gradient measurements at the λ0.25 checkpoints found the replay and X gradients mostly pulling against
+each other (mean cosine −0.106, −0.061 and −0.088 at updates 225, 250 and 275; +0.031 at 300) and the
+single global clip binding on 96 to 100% of batches. A one-step probe of 12 real updates found
+per-task clipping gives Y72 +1.42 segments (SE 0.54) over the global clip, and gradient projection
++0.5 (SE 0.29): real but far below one run's resolution. The saved data held no further Y72
+held-out items, so the study could not lower the noise itself. Curated record:
+[`results/experiment_y72-noise_noise_floor_clip_split.json`](results/experiment_y72-noise_noise_floor_clip_split.json).
+
+### 9. A 600-segment held-out set: both runs fail it, and the noise did not shrink as predicted
+
+A new Y72 held-out set of 600 segments was generated with the existing generator and seed policy,
+checked against every earlier row for seed, row, payload, filler and 16-byte-window overlap (none),
+and pre-registered with its hashes, a rescaled gate (sum over updates 250, 275, 300 ≥ 1440 and each
+≥ 432 of 600) and noise predictions, all committed before any checkpoint was scored on it
+(`prereg/y72_heldout_v2.json`).
+
+Scoring the existing checkpoints on it, afterwards: λ0.25 scored 363, 390 and 454 and λ0.5 450, 421
+and 420 at 250, 275 and 300, sums of **1207 and 1291 against 1440: both fail**, and two of three checkpoints in
+each run (λ0.25: 363, 390; λ0.5: 421, 420) also sit below the 432 guard. λ0.5 minus λ0.25 on the
+mean of the three is +28 segments (+4.67 points), z 3.01 with a cluster-bootstrap SE of 9.3, firmer
+than the +8 (z 2.06) on the 200-item set. The new set is about 4 points harder than the old one at
+the later checkpoints.
+
+The registered prediction was half right. Single-checkpoint noise scaled as predicted (SD 9.3 to 9.7
+segments, 1.6 points; predicted 8.9 to 9.8). The mean of three checkpoints did not: its SE is 8.3 to
+9.0 segments against a predicted 5.3 to 6.8, so the checkpoints share a component and averaging them
+buys less than independence would. Curated record:
+[`results/experiment_y72-heldout-v2_heldout_600.json`](results/experiment_y72-heldout-v2_heldout_600.json).
+
+### 10. A per-task gradient clip retained Y72 and still taught X64 (SUCCESS on the registered gates, one seed)
+
+The fix registered after finding 9 ([`prereg/y72fix2.md`](prereg/y72fix2.md), committed before the run) changes one thing in the
+resumed 225 to 300 continuation: instead of one global gradient-norm clip of 1.0 over the summed loss, the X gradient and
+the replay (Y) gradient are each clipped to a norm of 0.5 on their own, then combined with the replay weight λ = 0.25
+unchanged. Scored on the 600-segment Y72 set against gates written beforehand, one run, one seed, free T4 x2 (about 2.4
+minutes of training, $0):
+
+| update | Y72, 600-set | Y72, old 200-set | X64 held-out exact / tokens | X32 | X109 |
+|---|---|---|---|---|---|
+| 225 (start, recomputed) | 490 | n/a | 11 / 1418 | n/a | n/a |
+| 250 | 528 | 175 | 13 / 1526 | 202 | 101 |
+| 275 | 524 | 173 | 28 / 1564 | 249 | 109 |
+| 300 | 496 | 159 | 44 / 1665 | 229 | 109 |
+
+All three gates pass, evaluated with integer arithmetic exactly as registered: **retention** (sum over 250, 275, 300 =
+1548 against 1440, each checkpoint ≥ 432), **acquisition** (X64 held-out ≥ 11 at every checkpoint, and 1665 tokens against
+a bar of 1553, a gain of 247 tokens or 12.9 points from 1418) and **non-regression** (X32 ≥ 128 of 320, X109 ≥ 90 of 120).
+Earlier runs on the same 600-set summed to 1207 (global clip, λ0.25) and 1291 (global clip, λ0.5). The resumed state was
+restored exactly (model hash and integer counts, zero tolerance) before training. Curated record:
+[`results/experiment_y72-fix2_pertask_clip_600.json`](results/experiment_y72-fix2_pertask_clip_600.json).
+
+What this does and does not show. The X gradient was clipped in all 75 updates (mean scale 0.175) and the replay gradient
+in 30, so the change works by shrinking the X step that was overwriting Y72. That costs speed: X64 held-out was 44 at update
+300, against 92 for the λ0.5 global-clip run, so acquisition is about half as fast. Retention was still falling at 300
+(528, 524, 496), a 28-segment drop from 275 to 300 against a single-checkpoint SD of about 9.5, so a longer run may break
+the gate. The sum margin over the gate is 108 segments against a three-checkpoint sum SE of about 25 to 27 (finding 9), and the
+registered pass probability was about 0.6. It is one seed on one distance pair. The CPU probes that motivated the change are not bit-identical
+to the GPU (their trajectories diverge after about update 250); they predicted 528 at 250 and the GPU gave 528.
+
 ## Known limitations
 
 Stated plainly, because a research repository is only useful if its edges are visible.
@@ -304,7 +409,10 @@ Stated plainly, because a research repository is only useful if its edges are vi
   trained distance. The model appears to form distance-sharp representations at the offsets it is
   shown rather than a smooth rule, so an untrained distance next door is not covered. This is inferred
   from two degraded points in one run; the proposed fix (jittering filler lengths around each target)
-  has not been run.
+  was run as Experiment Y and did not work (finding 5).
+- **Retention of Y72 is only partly solved.** Continuing training taught X64 but dropped Y72 below its pre-registered
+  floor at every checkpoint from update 250 (findings 6 and 7), doubling the replay weight did not fix it,
+  and the 600-segment set (finding 9) fails both runs. Every one of these is a single run on a single seed. A per-task gradient clip (finding 10) passed all registered gates in one run on one seed, with X64 acquired about half as fast as under the global clip and Y72 retention still declining at update 300; the claim is therefore limited to that run.
 - **Distance limit is empirical.** We measured where it breaks (between 114 and 120). We have not
   proven *why* beyond ruling out record count and window size.
 - **CPU reference path.** Reported results were produced on GPU and validated against CPU evaluation
@@ -314,6 +422,12 @@ Stated plainly, because a research repository is only useful if its edges are vi
   continuation results is not included.
 - **Optimizer has a sharp edge.** The module-level `LR` global is a real hazard; see the warning
   above.
+- **A second forward drops the first expert selection.** `expert_selection` reports only the last
+  forward, and SliceAdam updates only the dict it is given. Replay training that runs a second
+  forward before the one step has to capture the first selection and union the second. Single-forward
+  training is unchanged. The packaged replay caller does that union and records whether each expert
+  slice was selected, had a nonzero gradient, had its optimizer clock advanced, and had a stored
+  value change. A clock advance is not recorded as a value change. See `docs/PACKAGING.md`.
 
 ## Repository layout
 
@@ -326,7 +440,8 @@ tests/           integrity tests (parameter counts, causality, routing, optimize
 benchmarks/      reproduce_retrieval.py - train and measure one distance end to end
 results/         machine-readable results from the reported experiments
 tools/           publish_experiment.py - fail-closed publisher for new experiment results
-docs/            figures, experiment log, and the publishing workflow
+tools/experiment_packaging/  exact notebook builder and isolated CPU preflight gate
+docs/            figures, experiment log, publishing workflow, packaging rebuild
 ```
 
 ## Citation and license

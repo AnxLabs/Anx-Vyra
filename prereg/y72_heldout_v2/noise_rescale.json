@@ -1,0 +1,239 @@
+{
+ "n_old": 200,
+ "n_new": 600,
+ "scale_factor_k": 3.0,
+ "assumption": "iterate/sampling noise is item-level (independent across segments): OBSERVED ICC by row -0.015 -> design effect 1 in the 200-item study, so SD in segments scales with sqrt(n) and SD in pp with 1/sqrt(n). A checkpoint-level component shared by all items would NOT shrink; that is the thing the scoring of existing checkpoints on the new set tests (prediction made BEFORE scoring).",
+ "single_checkpoint_sd_segments": {
+  "binomial_p0.8": {
+   "old_200": 5.656854249492381,
+   "new": 9.797958971132713,
+   "old_pp": 2.8284271247461903,
+   "new_pp": 1.6329931618554518
+  },
+  "churn_model_i": {
+   "old_200": 5.212165257037297,
+   "new": 9.027735042633894,
+   "old_pp": 2.606082628518648,
+   "new_pp": 1.504622507105649
+  },
+  "within_item_ii_all8": {
+   "old_200": 5.286438174369257,
+   "new": 9.156379509079212,
+   "old_pp": 2.6432190871846286,
+   "new_pp": 1.526063251513202
+  },
+  "within_item_ii_l05_k3": {
+   "old_200": 5.131601439446885,
+   "new": 8.88819441731559,
+   "old_pp": 2.5658007197234425,
+   "new_pp": 1.4813657362192647
+  },
+  "within_item_ii_l025_k4": {
+   "old_200": 5.4083269131959835,
+   "new": 9.367496997597597,
+   "old_pp": 2.7041634565979917,
+   "new_pp": 1.5612494995995994
+  }
+ },
+ "mean_of_3_sd_segments": {
+  "independent_ckpts_5.29/sqrt3": {
+   "old_200": 3.0521265030264044,
+   "new": 5.286438174369257,
+   "old_pp": 1.5260632515132022,
+   "new_pp": 0.8810730290615428
+  },
+  "cluster_bootstrap_l025": {
+   "old_200": 3.685479765806165,
+   "new": 6.3834382046433245,
+   "old_pp": 1.8427398829030828,
+   "new_pp": 1.063906367440554
+  },
+  "cluster_bootstrap_l05": {
+   "old_200": 3.9469516310058825,
+   "new": 6.836320759919036,
+   "old_pp": 1.9734758155029413,
+   "new_pp": 1.1393867933198394
+  }
+ },
+ "mde_vs_floor": {
+  "single_checkpoint": {
+   "binomial_p0.8": {
+    "segments": 24.36262498172149,
+    "pp": 4.060437496953582
+   },
+   "churn_model_i": {
+    "segments": 22.44746318350918,
+    "pp": 3.741243863918197
+   },
+   "within_item_ii_all8": {
+    "segments": 22.767337649325462,
+    "pp": 3.794556274887577
+   },
+   "within_item_ii_l05_k3": {
+    "segments": 22.100495418655214,
+    "pp": 3.683415903109202
+   },
+   "within_item_ii_l025_k4": {
+    "segments": 23.29228128452642,
+    "pp": 3.8820468807544044
+   }
+  },
+  "mean_of_3": {
+   "independent_ckpts_5.29/sqrt3": {
+    "segments": 13.144728520569156,
+    "pp": 2.1907880867615264
+   },
+   "cluster_bootstrap_l025": {
+    "segments": 15.872419095845625,
+    "pp": 2.645403182640938
+   },
+   "cluster_bootstrap_l05": {
+    "segments": 16.99851156953868,
+    "pp": 2.8330852615897806
+   }
+  },
+  "z_alpha_plus_z_beta": 2.4865
+ },
+ "gate": {
+  "per_checkpoint_floor_segments": 480,
+  "sum3_floor_segments": 1440,
+  "per_checkpoint_guard_segments": 432,
+  "old_gate_200": {
+   "sum3": 480,
+   "guard": 144
+  },
+  "n_new": 600
+ },
+ "operating_characteristics_sum3": {
+  "sd_mean3_independent": {
+   "sd_mean3_segments": 5.286438174369257,
+   "by_true_level_pct": {
+    "86": {
+     "P_pass_sum3": 0.999999999996079
+    },
+    "84": {
+     "P_pass_sum3": 0.9999975781494557
+    },
+    "82": {
+     "P_pass_sum3": 0.9893179292756377
+    },
+    "81": {
+     "P_pass_sum3": 0.8782952220482008
+    },
+    "80": {
+     "P_pass_sum3": 0.5125754552804918
+    },
+    "79": {
+     "P_pass_sum3": 0.1349153577401765
+    },
+    "78": {
+     "P_pass_sum3": 0.012596442698927568
+    },
+    "76": {
+     "P_pass_sum3": 3.2660467867984266e-06
+    },
+    "74": {
+     "P_pass_sum3": 6.077804926007957e-12
+    },
+    "72": {
+     "P_pass_sum3": 0.0
+    }
+   }
+  },
+  "sd_mean3_cluster_boot_l05": {
+   "sd_mean3_segments": 6.836320759919036,
+   "by_true_level_pct": {
+    "86": {
+     "P_pass_sum3": 0.9999999389654395
+    },
+    "84": {
+     "P_pass_sum3": 0.9997961432064949
+    },
+    "82": {
+     "P_pass_sum3": 0.9624382624778876
+    },
+    "81": {
+     "P_pass_sum3": 0.8164834290759224
+    },
+    "80": {
+     "P_pass_sum3": 0.5097250840628191
+    },
+    "79": {
+     "P_pass_sum3": 0.19675050133731964
+    },
+    "78": {
+     "P_pass_sum3": 0.04173029027351771
+    },
+    "76": {
+     "P_pass_sum3": 0.00024489336134558837
+    },
+    "74": {
+     "P_pass_sum3": 7.959038506033522e-08
+    },
+    "72": {
+     "P_pass_sum3": 1.3080647676133594e-12
+    }
+   }
+  },
+  "sd_mean3_fully_correlated_single_sd": {
+   "sd_mean3_segments": 9.156379509079212,
+   "by_true_level_pct": {
+    "86": {
+     "P_pass_sum3": 0.9999609059919213
+    },
+    "84": {
+     "P_pass_sum3": 0.9958464421164468
+    },
+    "82": {
+     "P_pass_sum3": 0.9080370643266196
+    },
+    "81": {
+     "P_pass_sum3": 0.7496799949871205
+    },
+    "80": {
+     "P_pass_sum3": 0.5072612443122759
+    },
+    "79": {
+     "P_pass_sum3": 0.2620368273062531
+    },
+    "78": {
+     "P_pass_sum3": 0.09811635111436057
+    },
+    "76": {
+     "P_pass_sum3": 0.004621661292280921
+    },
+    "74": {
+     "P_pass_sum3": 4.548719963071157e-05
+    },
+    "72": {
+     "P_pass_sum3": 8.752837543646308e-08
+    }
+   }
+  }
+ },
+ "operating_characteristics_every_ckpt_ge_floor": {
+  "sd_single_segments": 9.156379509079212,
+  "by_true_level_pct": {
+   "84": {
+    "P_all3_independent": 0.9888566485104486,
+    "P_all3_fully_correlated": 0.9962716663065527
+   },
+   "82": {
+    "P_all3_independent": 0.7633011940502408,
+    "P_all3_fully_correlated": 0.9138999367152529
+   },
+   "80": {
+    "P_all3_independent": 0.14205207689296864,
+    "P_all3_fully_correlated": 0.5217741139542365
+   },
+   "78": {
+    "P_all3_independent": 0.0011433347953152065,
+    "P_all3_fully_correlated": 0.10456615532259039
+   },
+   "76": {
+    "P_all3_independent": 1.3550254351842967e-07,
+    "P_all3_fully_correlated": 0.005136285419446773
+   }
+  }
+ }
+}

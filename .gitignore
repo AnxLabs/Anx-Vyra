@@ -31,6 +31,13 @@ kaggle.json
 *.pem
 *.key
 
+# exact-artifact packaging work: private inputs, generated notebooks, receipts
+/packaging-work/
+rehearsal_Y72_40.pt
+
 # OS noise
 .DS_Store
 Thumbs.db
+
+# private Kaggle identifiers (username, slugs, paths): local only; the committed template is kaggle_config.example.json
+/kaggle_config.json

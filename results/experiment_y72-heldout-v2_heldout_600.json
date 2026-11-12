@@ -1,0 +1,200 @@
+{
+ "question": "Can a larger, never-inspected Y72 held-out set (600 segments) lower the noise floor of the Y72 retention gate, and does the item-level sqrt(n) noise scaling hold when existing checkpoints are scored on it?",
+ "design": "600 new segments (120 rows x 5) from the existing Experiment-Y corpus generator (git c38958c, functions extracted verbatim), seed policy base+distance with new bases 20263600/20263700/20263800, extended leakage ban list (every train payload, probes, rehearsal rows). Pre-registered (set hashes, overlap check, rescaled gate, noise predictions) and committed before any checkpoint was scored. Existing checkpoints were then scored on CPU, checkpoint hashes verified before loading.",
+ "setup": {
+  "segments": 600,
+  "rows": 120,
+  "blocks": 3,
+  "seeds": [
+   20263672,
+   20263772,
+   20263872
+  ],
+  "distance": 72,
+  "set_canonical_sha256": "16ff53a839c5c68e2230fe4f96e794f11d7ff7f885cac3e184e4f4770f3ee71b",
+  "set_file_sha256": "12e034022357e230685a956e47658315797f164b5b11c30bd35ba4f6ca04a826",
+  "payload_list_sha256": "448e33d083368652f2be11c7e8b1fe958e9e6d0d111fea55d639e9c277eb693a",
+  "overlap_check_pass": true,
+  "seed_level_overlap": {
+   "files_scanned": 263,
+   "distinct_2026xxxx_literals_found": 11,
+   "implied_builder_seeds": 77,
+   "all_used_seeds_count": 87,
+   "new_seeds_in_used": [],
+   "pass": true
+  },
+  "content_level_overlap": {
+   "old_rows_scanned": 9627,
+   "sources_scanned": 140,
+   "exact_row_matches_total": 0,
+   "payload_matches_total": 0,
+   "filler_string_matches_total": 0,
+   "16byte_window_matches_total": 0,
+   "corpus_blob_payload_occurrences": 0
+  },
+  "gate": {
+   "sum_over_checkpoints_250_275_300_at_least": 1440,
+   "each_checkpoint_at_least": 432,
+   "equivalent_percent": "mean >= 80.0% and each >= 72.0%",
+   "rule_id": "vyra-y72-heldout-v2-gate-v1"
+  }
+ },
+ "final": {
+  "segment_exact_of_600_by_checkpoint": {
+   "l025_200": 498,
+   "l025_225": 490,
+   "l025_250": 363,
+   "l025_275": 390,
+   "l025_300": 454,
+   "l05_250": 450,
+   "l05_275": 421,
+   "l05_300": 420
+  },
+  "percent_by_checkpoint": {
+   "l025_200": 83.0,
+   "l025_225": 81.67,
+   "l025_250": 60.5,
+   "l025_275": 65.0,
+   "l025_300": 75.67,
+   "l05_250": 75.0,
+   "l05_275": 70.17,
+   "l05_300": 70.0
+  },
+  "same_checkpoints_on_legacy_200_set": {
+   "l025_200": 165,
+   "l025_225": 168,
+   "l025_250": 137,
+   "l025_275": 137,
+   "l025_300": 153,
+   "l05_250": 152,
+   "l05_275": 147,
+   "l05_300": 152
+  },
+  "adjacent_churn": {
+   "l025_200->l025_225": {
+    "c2w": 72,
+    "w2c": 64,
+    "flips": 136,
+    "net": -8,
+    "churn_rate": 0.22666666666666666
+   },
+   "l025_225->l025_250": {
+    "c2w": 169,
+    "w2c": 42,
+    "flips": 211,
+    "net": -127,
+    "churn_rate": 0.3516666666666667
+   },
+   "l025_250->l025_275": {
+    "c2w": 88,
+    "w2c": 115,
+    "flips": 203,
+    "net": 27,
+    "churn_rate": 0.3383333333333333
+   },
+   "l025_275->l025_300": {
+    "c2w": 49,
+    "w2c": 113,
+    "flips": 162,
+    "net": 64,
+    "churn_rate": 0.27
+   },
+   "l05_250->l05_275": {
+    "c2w": 88,
+    "w2c": 59,
+    "flips": 147,
+    "net": -29,
+    "churn_rate": 0.245
+   },
+   "l05_275->l05_300": {
+    "c2w": 94,
+    "w2c": 93,
+    "flips": 187,
+    "net": -1,
+    "churn_rate": 0.31166666666666665
+   }
+  },
+  "single_checkpoint_sd_segments": {
+   "registered_prediction_range": [
+    8.89,
+    9.8
+   ],
+   "churn_model": 9.3363,
+   "within_item_all_8_observations": 9.7285,
+   "inside_registered_range": true,
+   "row_icc_mean": 0.0129
+  },
+  "mean_of_checkpoints_250_275_300": {
+   "l025": {
+    "mean_segments": 402.3333,
+    "percent": 67.0556,
+    "cluster_bootstrap_se": 8.9605,
+    "ci95": [
+     384.6667,
+     419.6667
+    ],
+    "registered_prediction_range_se": [
+     5.29,
+     6.84
+    ]
+   },
+   "l05": {
+    "mean_segments": 430.3333,
+    "percent": 71.7222,
+    "cluster_bootstrap_se": 8.2557,
+    "ci95": [
+     414.0,
+     446.3333
+    ],
+    "registered_prediction_range_se": [
+     5.29,
+     6.84
+    ]
+   }
+  },
+  "paired_replay_0.5_minus_0.25_mean_of_3": {
+   "diff_segments": 28.0,
+   "diff_pp": 4.6667,
+   "cluster_boot_se": 9.2965,
+   "z": 3.0119,
+   "frac_boot_le_0": 0.0018
+  },
+  "minimum_detectable_effect_observed": {
+   "single_checkpoint_within_item_sd": {
+    "segments": 24.18980597165733,
+    "pp": 4.031634328609555
+   },
+   "single_checkpoint_churn_i": {
+    "segments": 23.21473245143408,
+    "pp": 3.869122075239013
+   },
+   "mean_of_3_cluster_boot_max": {
+    "segments": 22.280347214003637,
+    "pp": 3.7133912023339395
+   },
+   "mean_of_3_cluster_boot_min": {
+    "segments": 20.527899346328056,
+    "pp": 3.4213165577213425
+   }
+  },
+  "registered_gate_applied_to_the_two_observed_runs_illustration_only": {
+   "l025": {
+    "sum": 1207,
+    "verdict": "R_FAIL"
+   },
+   "l05": {
+    "sum": 1291,
+    "verdict": "R_FAIL"
+   }
+  },
+  "finding": "single-checkpoint noise scales as predicted (item-level, SD about 9.3-9.7 segments = 1.6 pp), but the mean of 3 checkpoints shrinks the SE less than independence predicts (observed 8.3-9.0 segments vs registered 5.3-6.8): checkpoints share a component. Both earlier runs fail the registered gate on the new set. The 600-set is about 4 pp harder than the 200-set for the later checkpoints (same generator, disjoint sample)."
+ },
+ "verdict": "pre-registered set and gate; existing checkpoints scored non-gating on CPU: both runs below the rescaled gate; noise scaling partly confirmed (single-checkpoint yes, mean-of-3 no)",
+ "cost": {
+  "gpu_hours": 0,
+  "usd": 0,
+  "cpu_seconds_scoring_8_checkpoints": 1202.1,
+  "wall_seconds_scoring": 159.0
+ },
+ "_curation_warning": "GENERIC SCRUBBER ONLY. No per-experiment adapter exists for this experiment. This record was produced by dropping known-unsafe keys; it has NOT been reviewed for content that is private without being identifiable by key name. Review every field before publishing."
+}

@@ -1,0 +1,9 @@
+l025_200 sha OK 8542c340 new600 seg 498 tok 4685 | legacy200 seg 165 (matches earlier study) | wall 21.9 s cpu 164.1 s
+l025_225 sha OK a84d35be new600 seg 490 tok 4680 | legacy200 seg 168 (matches earlier study) | wall 27.6 s cpu 198.2 s
+l025_250 sha OK 7756a076 new600 seg 363 tok 4526 | legacy200 seg 137 (matches earlier study) | wall 21.6 s cpu 163.5 s
+l025_275 sha OK 917f334f new600 seg 390 tok 4576 | legacy200 seg 137 (matches earlier study) | wall 13.7 s cpu 103.9 s
+l025_300 sha OK efce99e8 new600 seg 454 tok 4652 | legacy200 seg 153 (matches earlier study) | wall 17.2 s cpu 132.6 s
+l05_250 sha OK 666c0a9e new600 seg 450 tok 4645 | legacy200 seg 152 (matches earlier study) | wall 18.7 s cpu 144.4 s
+l05_275 sha OK c92ca96b new600 seg 421 tok 4609 | legacy200 seg 147 (matches earlier study) | wall 19.6 s cpu 150.8 s
+l05_300 sha OK c962c8ae new600 seg 420 tok 4607 | legacy200 seg 152 (matches earlier study) | wall 18.7 s cpu 144.6 s
+total {'wall_s': 159.0, 'cpu_process_s': 1202.1}
