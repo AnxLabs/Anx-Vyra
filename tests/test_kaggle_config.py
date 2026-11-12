@@ -13,7 +13,7 @@ sys.path.insert(0, str(PKG))
 
 import kaggle_config as K  # noqa: E402
 
-BUILDERS = ("build.py", "build_continuation.py", "build_y72fix.py", "build_y72fix2.py", "build_y72fix2_cont400.py")
+BUILDERS = ("build.py", "build_continuation.py", "build_y72fix.py", "build_y72fix2.py", "build_y72fix2_cont400.py", "build_y72_rehearsal2.py")
 
 
 def _cfg(**over):
@@ -162,3 +162,4 @@ def test_optional_slugs_are_optional_but_fail_closed_when_used(use_config):
     use_config(_cfg(), name="full.json")
     assert K.dataset_id("ckpt300") == "example-user/example-ckpt300-dataset"
     assert K.expand("@@SLUG_KERNEL_Y72FIX2_CONT400@@") == "example-kernel-y72fix2-cont400"
+    assert K.expand("@@SLUG_KERNEL_Y72_REHEARSAL2@@") == "example-kernel-y72-rehearsal2"

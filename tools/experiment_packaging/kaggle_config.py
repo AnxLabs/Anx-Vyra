@@ -32,7 +32,7 @@ REQUIRED_SLUGS = ("x_bundle", "y_bundle", "ckpt200", "ckpt225", "kernel_replay17
 REQUIRED_KEYS = ("username", "root", "local_inputs", "slugs")
 # Slugs added after the first scrub. Optional so that older private configs keep working for the older builders; a token
 # of an absent optional slug is simply undefined, so any text that uses it fails closed ("unknown kaggle config token").
-OPTIONAL_SLUGS = ("ckpt300", "kernel_y72fix2_cont400")
+OPTIONAL_SLUGS = ("ckpt300", "kernel_y72fix2_cont400", "kernel_y72_rehearsal2")
 
 
 class KaggleConfigError(RuntimeError):

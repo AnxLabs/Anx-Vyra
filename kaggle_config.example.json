@@ -14,6 +14,7 @@
     "kernel_y72fix": "example-kernel-y72fix",
     "kernel_y72fix2": "example-kernel-y72fix2",
     "ckpt300": "example-ckpt300-dataset",
-    "kernel_y72fix2_cont400": "example-kernel-y72fix2-cont400"
+    "kernel_y72fix2_cont400": "example-kernel-y72fix2-cont400",
+    "kernel_y72_rehearsal2": "example-kernel-y72-rehearsal2"
   }
 }
